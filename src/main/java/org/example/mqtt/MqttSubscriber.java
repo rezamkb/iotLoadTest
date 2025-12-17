@@ -1,4 +1,4 @@
-package org.example;
+package org.example.mqtt;
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
@@ -8,7 +8,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MqttCollector implements MqttCallback {
+public class MqttSubscriber implements MqttCallback {
 
     private final String broker;
     private final String topic;
@@ -20,7 +20,7 @@ public class MqttCollector implements MqttCallback {
     private final CountDownLatch latch;
     private MqttClient client;
 
-    public MqttCollector(String broker, String topic, int qos, String clientId, int expectedMessages) {
+    public MqttSubscriber(String broker, String topic, int qos, String clientId, int expectedMessages) {
         this.broker = broker;
         this.topic = topic;
         this.qos = qos;
@@ -57,6 +57,8 @@ public class MqttCollector implements MqttCallback {
     @Override
     public void messageArrived(String topic, MqttMessage message) {
         String msg = new String(message.getPayload());
+
+        System.out.println("message Arrived");
         store.add(msg);
         counter.incrementAndGet();
         latch.countDown();  // count down when message is received

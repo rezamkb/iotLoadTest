@@ -1,5 +1,9 @@
-package org.example.api.device;
+package org.example.api.device.runner;
 
+import org.example.api.device.Config;
+import org.example.api.device.CsvExporter;
+import org.example.api.device.DeviceClient;
+import org.example.api.device.DeviceReqFactory;
 import org.example.api.device.dto.CreateDeviceReq;
 import org.example.api.device.dto.CreateDeviceResponse;
 
@@ -17,6 +21,11 @@ public class CreateDeviceLoadTestRunner {
     private final DeviceClient client  = new DeviceClient();
     private final ExecutorService executor =
             Executors.newFixedThreadPool(Config.THREAD_POOL_SIZE);
+    private String filePath;
+
+    public CreateDeviceLoadTestRunner(String filePath) {
+        this.filePath = filePath;
+    }
 
     // thread-safe list to store only the subset of response fields
     private final List<CreateDeviceResponse> storedResponses =
@@ -42,7 +51,7 @@ public class CreateDeviceLoadTestRunner {
 
         // Export stored responses to CSV
         try {
-            CsvExporter.exportCreateDeviceResponses(storedResponses, "devices.csv");
+            CsvExporter.exportCreateDeviceResponses(storedResponses, filePath);
             System.out.println("Exported " + storedResponses.size() + " records to devices.csv");
         } catch (IOException e) {
             System.err.println("Failed to export CSV: " + e.getMessage());

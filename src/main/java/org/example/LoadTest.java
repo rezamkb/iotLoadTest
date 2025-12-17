@@ -1,19 +1,16 @@
 package org.example;
 
-import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.example.mqtt.MqttPublisher;
 
-import java.nio.file.*;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * End‑to‑end MQTT load test:
  *   – one always‑on subscriber (collector)
  *   – N publishers (virtual threads) loaded from client_ids.csv
  *   – writes received payloads to received_messages.txt
- */
+// */
 public class LoadTest {
 
     // === CONFIGURATION ====================================================
@@ -27,22 +24,23 @@ public class LoadTest {
 
     public static void main(String[] args) throws Exception {
 
-        MqttCollector collector = new MqttCollector(BROKER_URL, SUB_TOPIC, QOS, subClientId, 2);
-        collector.start();
+//        MqttSubscriber collector = new MqttSubscriber(BROKER_URL, SUB_TOPIC, QOS, subClientId, 2);
+//        collector.start();
 
         // Give subscriber a moment to connect before publishing
         Thread.sleep(1000);
 
-        try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
-            exec.submit(new MqttPublisherTask(BROKER_URL, PUB_TOPIC, pubClientId, QOS));
+        try (ExecutorService exec = Executors.newFixedThreadPool(10)) {
+            exec.submit(new MqttPublisher(BROKER_URL, PUB_TOPIC, pubClientId, QOS));
+
             exec.shutdown();
             exec.awaitTermination(10, TimeUnit.SECONDS);
         }
 
         // Wait for message(s) or timeout
-        List<String> messages = collector.stopAndGet(30);
-        System.out.println("Received " + messages.size() + " message(s)");
-        messages.forEach(System.out::println);
+      //  List<String> messages = collector.stopAndGet(30);
+//        System.out.println("Received " + messages.size() + " message(s)");
+//        messages.forEach(System.out::println);
     }
 
 

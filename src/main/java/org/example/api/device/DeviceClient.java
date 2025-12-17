@@ -15,7 +15,8 @@ public class DeviceClient {
 
     public DeviceClient() {
         this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .connectTimeout(Duration.ofSeconds(30))
                 .build();
         this.mapper = new ObjectMapper();
     }
@@ -40,4 +41,29 @@ public class DeviceClient {
         // parse only needed props; ignores the rest
         return mapper.readValue(resp.body(), CreateDeviceResponse.class);
     }
+
+
+    public int attachDeviceToEdge(String DeviceId,String edgeId) throws Exception {
+        String url = Config.URL+"/edges/"+edgeId+"/devices/"+DeviceId;
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept",        "*/*")
+                .header("Content-Type",  "application/json")
+                .header("Authorization", "Bearer " + Config.AUTH_TOKEN)
+//                .header("Cookie",        "JSESSIONID=" + Config.JSESSIONID)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+
+        System.out.println( "attachDeviceToEdge url is : " +resp.request().uri().toString() + "  with this response code : " + resp.statusCode() );
+        // parse only needed props; ignores the rest
+     //   if (resp.statusCode() != 200) {}
+        return resp.statusCode();
+    }
+
+
+
+
 }

@@ -9,10 +9,7 @@ import java.util.List;
 import com.opencsv.CSVWriter;
 public class CsvExporter {
     public static void exportCreateDeviceResponses(List<CreateDeviceResponse> responses, String filePath) throws IOException {
-        try (CSVWriter writer = new CSVWriter(new FileWriter(filePath))) {
-            // Header row
-            writer.writeNext(new String[] {"id", "name", "clientId", "alternativeClientId", "deviceTypeId"});
-            // Data rows
+        try (CSVWriter writer = new CSVWriter(new FileWriter(filePath, true))) {
             for (CreateDeviceResponse dr : responses) {
                 writer.writeNext(new String[] {
                         dr.getId(),
@@ -24,4 +21,5 @@ public class CsvExporter {
             }
         }
     }
+
 }
