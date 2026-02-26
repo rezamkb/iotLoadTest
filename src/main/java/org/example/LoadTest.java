@@ -5,12 +5,7 @@ import org.example.mqtt.MqttPublisher;
 import java.util.List;
 import java.util.concurrent.*;
 
-/**
- * End‑to‑end MQTT load test:
- *   – one always‑on subscriber (collector)
- *   – N publishers (virtual threads) loaded from client_ids.csv
- *   – writes received payloads to received_messages.txt
-// */
+
 public class LoadTest {
 
     // === CONFIGURATION ====================================================
@@ -24,10 +19,7 @@ public class LoadTest {
 
     public static void main(String[] args) throws Exception {
 
-//        MqttSubscriber collector = new MqttSubscriber(BROKER_URL, SUB_TOPIC, QOS, subClientId, 2);
-//        collector.start();
 
-        // Give subscriber a moment to connect before publishing
         Thread.sleep(1000);
 
         try (ExecutorService exec = Executors.newFixedThreadPool(10)) {

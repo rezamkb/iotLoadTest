@@ -21,6 +21,8 @@ dependencies {
     implementation("javax.jms:javax.jms-api:2.0.1")
     implementation("org.apache.activemq:activemq-client:5.17.4")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.19.0")
+    implementation("org.apache.commons:commons-csv:1.10.0")
+
 
 }
 

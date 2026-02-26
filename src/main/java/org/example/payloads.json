@@ -1,0 +1,537 @@
+{ "payloads":{
+
+  "3c3ij23sysa" : [
+    {
+      "$requestId": "randgtgetgom",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "occupied_heating_setpoint": 47,
+            "occupied_cooling_setpoint": 63,
+            "local_temperature": 28,
+            "humidity": 71,
+            "system_mode": "alpha",
+            "fan_state": "low",
+            "last_seen": "charlie",
+            "linkquality": 85,
+            "running_state": "cool",
+            "occupancy": true,
+            "keypad_lockout": 22,
+            "max_heat_setpoint_limit": 90,
+            "min_heat_setpoint_limit": 15,
+            "max_cool_setpoint_limit": 76,
+            "min_cool_setpoint_limit": 12,
+            "control_sequence_of_operation": "cooling_only",
+            "running_mode": "cool",
+            "temperature_setpoint_hold": false,
+            "temperature_setpoint_hold_duration": 54,
+            "fan_mode": "auto",
+            "unoccupied_heating_setpoint": 33,
+            "unoccupied_cooling_setpoint": 68,
+            "programming_operation_mode": "omega"
+          }
+        }
+      }
+    } ,
+
+    {
+      "$requestId": "ranwtgwgdom",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "occupied_heating_setpoint": 58,
+            "occupied_cooling_setpoint": 72,
+            "local_temperature": 26,
+            "humidity": 64,
+            "system_mode": "cool",
+            "fan_state": "high",
+            "last_seen": "pulse",
+            "linkquality": 91,
+            "running_state": "idle",
+            "occupancy": false,
+            "keypad_lockout": 37,
+            "max_heat_setpoint_limit": 95,
+            "min_heat_setpoint_limit": 18,
+            "max_cool_setpoint_limit": 82,
+            "min_cool_setpoint_limit": 14,
+            "control_sequence_of_operation": "cooling_only",
+            "running_mode": "off",
+            "temperature_setpoint_hold": true,
+            "temperature_setpoint_hold_duration": 43,
+            "fan_mode": "auto",
+            "unoccupied_heating_setpoint": 29,
+            "unoccupied_cooling_setpoint": 66,
+            "programming_operation_mode": "schedule"
+          }
+        }
+      }
+    }
+  ]
+,
+  "953mtdlosq0" : [
+    {
+      "$requestId": "rawgtwtgndom",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "energy": 42,
+            "last_seen": "alive",
+            "linkquality": 87,
+            "power": 65,
+            "state": "on"
+          }
+        }
+      }
+    } ,
+
+    {
+      "$requestId": "randgwtgtwgtom",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "energy": 73,
+            "last_seen": "recent",
+            "linkquality": 54,
+            "power": 21,
+            "state": "off"
+          }
+        }
+      }
+    }
+
+  ]
+
+
+,"zf2fzgxmouh" : [
+
+    {
+      "$requestId": "zf2fzgxmouh1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "state": "open",
+            "running_state": "moving",
+            "last_seen": "active",
+            "linkquality": 88,
+            "tilt": 35,
+            "position": 62
+          }
+        }
+      }
+    }
+  ,
+    {
+      "$requestId": "zf2fzgxmouh2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "state": "closed",
+            "running_state": "idle",
+            "last_seen": "recent",
+            "linkquality": 57,
+            "tilt": 12,
+            "position": 5
+          }
+        }
+      }
+    }
+  ]
+,"c68apbaqgkb" : [
+    {
+      "$requestId": "c68apbaqgkb1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "contact": false,
+            "last_seen": "recent",
+            "linkquality": 58,
+            "battery": 22,
+            "battery_low": true,
+            "tamper": true,
+            "temperature": 19,
+            "voltage": 86,
+            "power_outage_count": 5,
+            "device_temperature": 29
+          }
+        }
+      }
+    },{
+      "$requestId": "c68apbaqgkb2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "contact": true,
+            "last_seen": "online",
+            "linkquality": 79,
+            "battery": 64,
+            "battery_low": false,
+            "tamper": false,
+            "temperature": 27,
+            "voltage": 91,
+            "power_outage_count": 12,
+            "device_temperature": 33
+          }
+        }
+      }
+    }]
+
+,"c7dj94y7hf1" : [
+    {
+      "$requestId": "c7dj94y7hf11",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "battery": 67,
+            "occupancy": true,
+            "linkquality": 82,
+            "last_seen": "active",
+            "voltage": 94,
+            "power_outage_count": 7,
+            "device_temperature": 36,
+            "illuminance_lux": 55,
+            "illuminance": 48,
+            "detection_interval": 22,
+            "motion_sensitivity": "high",
+            "trigger_indicator": true,
+            "temperature": 25,
+            "led_indication": false,
+            "occupancy_timeout": 31
+          }
+        }
+      }
+    },{
+      "$requestId": "c7dj94y7hf12",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "battery": 29,
+            "occupancy": false,
+            "linkquality": 61,
+            "last_seen": "recent",
+            "voltage": 87,
+            "power_outage_count": 3,
+            "device_temperature": 28,
+            "illuminance_lux": 72,
+            "illuminance": 64,
+            "detection_interval": 15,
+            "motion_sensitivity": "medium",
+            "trigger_indicator": false,
+            "temperature": 20,
+            "led_indication": true,
+            "occupancy_timeout": 18
+          }
+        }
+      }
+    }
+  ]
+,"iw0bp1a8fvv" : [
+    {
+      "$requestId": "iw0bp1a8fvv1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "voltage": 92,
+            "current": 37,
+            "power": 64,
+            "energy": 58,
+            "last_seen": 41,
+            "linkquality": 85
+          }
+        }
+      }
+    },{
+      "$requestId": "iw0bp1a8fvv2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "voltage": 76,
+            "current": 22,
+            "power": 49,
+            "energy": 83,
+            "last_seen": 17,
+            "linkquality": 69
+          }
+        }
+      }
+    }
+  ]
+,"lmoukuce122" : [
+    {
+      "$requestId": "lmoukuce1221",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "co2": 64,
+            "temperature": 27,
+            "humidity": 58,
+            "voltage": 91,
+            "battery_low": false,
+            "last_seen": "online",
+            "linkquality": 83
+          }
+        }
+      }
+    },
+    {
+      "$requestId": "lmoukuce1222",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "co2": 72,
+            "temperature": 21,
+            "humidity": 49,
+            "voltage": 86,
+            "battery_low": true,
+            "last_seen": "recent",
+            "linkquality": 67
+          }
+        }
+      }
+    }
+  ]
+,"mxne7wviiid" : [
+    {
+      "$requestId": "mxne7wviiid1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "power": 74,
+            "energy": 63,
+            "voltage_l3": 92,
+            "current_l1": 31,
+            "current_l2": 36,
+            "current_l3": 28,
+            "energy_l1": 55,
+            "energy_l2": 48,
+            "energy_l3": 59,
+            "reactive_energy_l1": 27,
+            "reactive_energy_l2": 34,
+            "reactive_energy_l3": 29,
+            "power_l1": 66,
+            "power_l2": 61,
+            "power_l3": 69,
+            "reactive_power_l1": 25,
+            "reactive_power_l2": 32,
+            "reactive_power_l3": 30,
+            "last_seen": "active",
+            "linkquality": 88,
+            "battery_low": false,
+            "pulse_configuration": 14,
+            "interface_mode": "gas",
+            "current_summation": 79,
+            "check_meter": true,
+            "voltage_l1": 90,
+            "voltage_l2": 87
+          }
+        }
+      }
+    },{
+      "$requestId": "mxne7wviiid2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "power": 52,
+            "energy": 47,
+            "voltage_l3": 85,
+            "current_l1": 22,
+            "current_l2": 26,
+            "current_l3": 24,
+            "energy_l1": 39,
+            "energy_l2": 41,
+            "energy_l3": 45,
+            "reactive_energy_l1": 18,
+            "reactive_energy_l2": 21,
+            "reactive_energy_l3": 19,
+            "power_l1": 53,
+            "power_l2": 49,
+            "power_l3": 57,
+            "reactive_power_l1": 16,
+            "reactive_power_l2": 19,
+            "reactive_power_l3": 17,
+            "last_seen": "recent",
+            "linkquality": 67,
+            "battery_low": true,
+            "pulse_configuration": 11,
+            "interface_mode": "electricity",
+            "current_summation": 62,
+            "check_meter": false,
+            "voltage_l1": 82,
+            "voltage_l2": 79
+          }
+        }
+      }
+    }
+  ]
+,"om1562ilr4k" : [
+    {
+      "$requestId": "om1562ilr4k1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "voltage_01": 71, "voltage_02": 73, "voltage_03": 69, "voltage_04": 75,
+            "voltage_05": 68, "voltage_06": 72, "voltage_07": 70, "voltage_08": 74,
+            "voltage_09": 67, "voltage_10": 76, "voltage_11": 65, "voltage_12": 77,
+            "voltage_13": 66, "voltage_14": 78, "voltage_15": 64, "voltage_16": 79,
+            "voltage_17": 63, "voltage_18": 80, "voltage_19": 62, "voltage_20": 81,
+
+            "dccurrent": 36,
+            "temperature_1": 28,
+            "humidity_1": 54,
+            "temperature_2": 29,
+            "humidity_2": 56,
+
+            "input_voltage_r": 90,
+            "input_voltage_s": 88,
+            "input_voltage_t": 91,
+            "input_freq_r": 50,
+            "input_freq_s": 49,
+            "input_freq_t": 51,
+
+            "output_voltage_r": 87,
+            "output_voltage_s": 86,
+            "output_voltage_t": 85,
+            "output_current_r": 33,
+            "output_current_s": 35,
+            "output_current_t": 34,
+            "output_load_r": 58,
+            "output_load_s": 61,
+            "output_load_t": 59,
+
+            "mode_status": 11,
+            "conn_status": 22,
+            "alarm_status": 10,
+
+            "batt_voltage": 92,
+            "batt_capacity": 74,
+
+            "last_seen": "online",
+            "linkquality": 83,
+            "ups_manufacturer": "apex",
+            "ups_model": "x200",
+            "ups_rated_power": 68
+          }
+        }
+      }
+    },{
+      "$requestId": "om1562ilr4k2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "voltage_01": 61, "voltage_02": 62, "voltage_03": 60, "voltage_04": 63,
+          "voltage_05": 59, "voltage_06": 64, "voltage_07": 58, "voltage_08": 65,
+          "voltage_09": 57, "voltage_10": 66, "voltage_11": 56, "voltage_12": 67,
+          "voltage_13": 55, "voltage_14": 68, "voltage_15": 54, "voltage_16": 69,
+          "voltage_17": 53, "voltage_18": 70, "voltage_19": 52, "voltage_20": 71,
+
+          "dccurrent": 28,
+          "temperature_1": 24,
+          "humidity_1": 49,
+          "temperature_2": 25,
+          "humidity_2": 47,
+
+          "input_voltage_r": 85,
+          "input_voltage_s": 84,
+          "input_voltage_t": 86,
+          "input_freq_r": 48,
+          "input_freq_s": 47,
+          "input_freq_t": 49,
+
+          "output_voltage_r": 82,
+          "output_voltage_s": 81,
+          "output_voltage_t": 83,
+          "output_current_r": 26,
+          "output_current_s": 27,
+          "output_current_t": 25,
+          "output_load_r": 52,
+          "output_load_s": 50,
+          "output_load_t": 51,
+
+          "mode_status": 12,
+          "conn_status": 18,
+          "alarm_status": 15,
+
+          "batt_voltage": 88,
+          "batt_capacity": 63,
+
+          "last_seen": "recent",
+          "linkquality": 69,
+          "ups_manufacturer": "nova",
+          "ups_model": "z500",
+          "ups_rated_power": 57
+        }
+      }
+    }]
+,"ulf2obizksn" : [
+    {
+      "$requestId": "ulf2obizksn1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "state_l1": "off",
+            "state_l2": "off",
+            "last_seen": "online",
+            "linkquality": 84
+          }
+        }
+      }
+    },{
+      "$requestId": "ulf2obizksn2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "state_l1": "on",
+            "state_l2": "on",
+            "last_seen": "recent",
+            "linkquality": 59
+          }
+        }
+      }
+    }
+  ]
+,"zuzcfyas8fa" : [
+    {
+      "$requestId": "zuzcfyas8fa1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "ac_louver_position": "fully_open",
+            "control_sequence_of_operation": "cooling_only",
+            "temp_control": 24,
+            "occupied_heating_setpoint": 42,
+            "occupied_cooling_setpoint": 68,
+            "local_temperature": 27,
+            "system_mode": "cool",
+            "fan_state": "high",
+            "write": 11,
+            "last_seen": "online",
+            "linkquality": 86,
+            "search": "start",
+            "code": 55
+          }
+        }
+      }
+    },
+    {
+      "$requestId": "zuzcfyas8fa2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "ac_louver_position": "fully_open",
+            "control_sequence_of_operation": "cooling_only",
+            "temp_control": 19,
+            "occupied_heating_setpoint": 51,
+            "occupied_cooling_setpoint": 73,
+            "local_temperature": 23,
+            "system_mode": "cool",
+            "fan_state": "high",
+            "write": 27,
+            "last_seen": "recent",
+            "linkquality": 62,
+            "search": "pause",
+            "code": 34
+          }
+        }
+      }
+    }
+  ]
+
+}}

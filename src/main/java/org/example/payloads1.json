@@ -1,0 +1,124 @@
+{ "payloads":{
+
+
+
+  "953mtdlosq0" : [
+    {
+      "$requestId": "rawgtwtgndom",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "energy": 42,
+            "last_seen": "alive",
+            "linkquality": 87,
+            "power": 65,
+            "state": "on"
+          }
+        }
+      }
+    } ,
+
+    {
+      "$requestId": "randgwtgtwgtom",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "energy": 73,
+            "last_seen": "recent",
+            "linkquality": 54,
+            "power": 21,
+            "state": "off"
+          }
+        }
+      }
+    }
+
+  ]
+
+,"mxne7wviiid" : [
+    {
+      "$requestId": "mxne7wviiid1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "power": 74,
+            "energy": 63,
+            "voltage_l3": 92,
+            "current_l1": 31,
+            "current_l2": 36,
+            "current_l3": 28,
+            "energy_l1": 55,
+            "energy_l2": 48,
+            "energy_l3": 59,
+            "reactive_energy_l1": 27,
+            "reactive_energy_l2": 34,
+            "reactive_energy_l3": 29,
+            "power_l1": 8,
+            "power_l2": 7,
+            "power_l3": 12,
+            "reactive_power_l1": 25,
+            "reactive_power_l2": 32,
+            "reactive_power_l3": 30,
+            "voltage_l1": 90,
+            "voltage_l2": 87
+          }
+        }
+      }
+    },{
+      "$requestId": "mxne7wviiid2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "power": 52,
+            "energy": 47,
+            "voltage_l3": 85,
+            "current_l1": 22,
+            "current_l2": 26,
+            "current_l3": 24,
+            "energy_l1": 39,
+            "energy_l2": 41,
+            "energy_l3": 45,
+            "reactive_energy_l1": 18,
+            "reactive_energy_l2": 21,
+            "reactive_energy_l3": 19,
+            "power_l1": 4,
+            "power_l2": 3,
+            "power_l3": 9,
+            "reactive_power_l1": 16,
+            "reactive_power_l2": 19,
+            "reactive_power_l3": 17,
+            "voltage_l1": 82,
+            "voltage_l2": 79
+          }
+        }
+      }
+    }
+  ]
+,"zuzcfyas8fa" : [
+    {
+      "$requestId": "zuzcfyas8fa1",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "local_temperature": 27,
+            "system_mode": "cool",
+            "fan_state": "high"
+          }
+        }
+      }
+    },
+    {
+      "$requestId": "zuzcfyas8fa2",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+
+            "local_temperature": 23,
+            "system_mode": "heat"
+          }
+        }
+      }
+    }
+  ]
+
+}}
