@@ -1,30 +1,32 @@
 package org.example.api.device;
 
-import org.example.mqtt.ClientInfo;
-
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
-public class CsvReader {
+public final class CsvReader {
+    private CsvReader() {
+    }
 
-
-
-
-    public static List<String> readDeviceIds(Path filePath) throws Exception {
-        List<String> list = new ArrayList<>();
+    public static List<String> readDeviceIds(Path filePath) throws IOException {
+        Set<String> deviceIds = new LinkedHashSet<>();
         try (BufferedReader reader = Files.newBufferedReader(filePath)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] parts = line.split(",", 5);
                 if (parts.length == 5) {
-                    list.add(stripQuotes(parts[0].trim()));
+                    String deviceId = stripQuotes(parts[0].trim());
+                    if (!deviceId.isBlank() && !deviceId.equalsIgnoreCase("id")) {
+                        deviceIds.add(deviceId);
+                    }
                 }
             }
         }
-        return list;
+        return List.copyOf(deviceIds);
     }
 
 
@@ -34,7 +36,4 @@ public class CsvReader {
         }
         return s;
     }
-
-
-
 }
