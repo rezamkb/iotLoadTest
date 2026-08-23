@@ -1,13 +1,16 @@
 package org.example;
 
 import org.example.api.device.runner.AttachDeviceToEdgeRunner;
-import org.example.api.device.runner.CreateDeviceLoadTestRunner;
+import org.example.api.device.runner.CreateDevicesByTypeLoadTestRunner;
 import org.example.mqtt.edge.HPMqttEdgePublisher;
 
 public class Main {
     public static void main(String[] args) {
 
-      new CreateDeviceLoadTestRunner("devices5.csv").run();
+      new CreateDevicesByTypeLoadTestRunner(
+              "src/main/java/org/example/deviceTypes.csv",
+              "devices5.csv"
+      ).run();
 
    //  new AttachDeviceToEdgeRunner("devices1.csv","5tq9l78nso1").run();
 

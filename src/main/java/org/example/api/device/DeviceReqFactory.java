@@ -11,7 +11,18 @@ public class DeviceReqFactory {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public static CreateDeviceReq createDeviceReq() {
-        String uniqueName = "device-" + UUID.randomUUID();
+        return createDeviceReq(Config.DEFAULT_DEVICE_TYPE_ID, "device");
+    }
+
+    public static CreateDeviceReq createDeviceReq(String deviceTypeId, String deviceTypeName) {
+        if (deviceTypeId == null || deviceTypeId.isBlank()) {
+            throw new IllegalArgumentException("deviceTypeId must not be blank");
+        }
+        if (deviceTypeName == null || deviceTypeName.isBlank()) {
+            throw new IllegalArgumentException("deviceTypeName must not be blank");
+        }
+
+        String uniqueName = deviceTypeName + "-" + UUID.randomUUID();
         String serial     = UUID.randomUUID().toString();
         // Create tags JsonNode
 
@@ -21,7 +32,7 @@ public class DeviceReqFactory {
         return new CreateDeviceReq(
                 uniqueName,
                 Config.DEFAULT_DESCRIPTION,
-                Config.DEFAULT_DEVICE_TYPE_ID,
+                deviceTypeId,
                 serial,
                 Config.DEFAULT_PUSH_URL,
                 tags
