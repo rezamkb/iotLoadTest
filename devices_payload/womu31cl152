@@ -1,0 +1,21 @@
+{
+  "deviceReport": [
+    {
+      "deviceId": "replace-with-device-id",
+      "deviceTwinDocument": {
+        "attributes": {
+          "reported": {
+            "occupied_heating_setpoint": 20,
+            "occupied_cooling_setpoint": 25,
+            "local_temperature": 24.6,
+            "humidity": 37,
+            "fan_state": "on",
+            "system_mode": "cool",
+            "last_seen": "2026-08-24T08:00:00Z",
+            "linkquality": 82
+          }
+        }
+      }
+    }
+  ]
+}

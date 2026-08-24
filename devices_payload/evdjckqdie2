@@ -1,0 +1,41 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                "reactive_energy_l3": 33067.585,
+                "last_seen": "2025-05-03t07:40:16.718z",
+                "power_l2": 4188,
+                "reactive_power_l3": 1660,
+                "power_l3": 3697,
+                "reactive_power_l2": 2212,
+                "reactive_energy_l1": 3819.049,
+                "reactive_power_l1": 1791,
+                "reactive_energy_l2": 35341.313,
+                "voltage_l3": 227.4,
+                "power_l1": 6322,
+                "linkquality": 65,
+                "current_l3": 17.821,
+                "current_l2": 21.124,
+                "power": 14206,
+                "current_l1": 30.085,
+                "energy_l3": 22148.123,
+                "energy_l1": 49413.671,
+                "voltage_l1": 218.4,
+                "energy": 98234.86,
+                "energy_l2": 26673.068,
+                "voltage_l2": 224.2     
+                }
+ 
+            }
+        }
+    }
+   ]
+}
+

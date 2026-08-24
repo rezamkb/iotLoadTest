@@ -29,10 +29,10 @@ public class LoadTest {
             exec.awaitTermination(10, TimeUnit.SECONDS);
         }
 
-        // Wait for message(s) or timeout
-      //  List<String> messages = collector.stopAndGet(30);
-//        System.out.println("Received " + messages.size() + " message(s)");
-//        messages.forEach(System.out::println);
+         // Wait for message(s) or timeout
+        //  List<String> messages = collector.stopAndGet(30);
+       // System.out.println("Received " + messages.size() + " message(s)");
+        //  messages.forEach(System.out::println);
     }
 
 

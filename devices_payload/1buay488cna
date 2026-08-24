@@ -1,0 +1,27 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                "linkquality": 120,
+                "last_seen": "2025-05-02t20:23:22.787z",
+                "co2": 903,
+                "temperature": 22.77,
+                "humidity": 25.19,
+                "battery_low": false,
+                "voltage": 3500
+                }
+ 
+            }
+        }
+    }
+   ]
+}
+
+

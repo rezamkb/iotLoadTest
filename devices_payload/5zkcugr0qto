@@ -1,0 +1,33 @@
+
+                
+                
+                
+                
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                "programming_operation_mode": "schedule",
+                "occupied_heating_setpoint": 20,
+                "last_seen": "2025-05-03t07:26:56.550z",
+                "linkquality": 160,
+                "occupancy": true,
+                "occupied_cooling_setpoint": 25,
+                "humidity": 36,
+                "running_state": "fan_only",
+                "local_temperature": 23.5,
+                "fan_state": "on",
+                "system_mode": "heat"
+                }
+ 
+            }
+        }
+    }
+   ]
+}

@@ -1,0 +1,25 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                "tamper": false,
+                "last_seen": "2025-05-03t04:04:58.193z",
+                "linkquality": 156,
+                "contact": false,
+                "battery": 100,
+                "battery_low": false,
+                "voltage": 3000
+                }
+ 
+            }
+        }
+    }
+   ]
+}

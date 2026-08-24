@@ -1,0 +1,22 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                "linkquality": 61,
+                "power": 297,
+                "state": "on",
+                "energy": 705.12
+                }
+ 
+            }
+        }
+    }
+   ]
+}

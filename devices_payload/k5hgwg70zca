@@ -1,0 +1,27 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                 "occupancy_timeout": 0,
+                "illuminance": 29475,
+                "last_seen": "2025-05-03t07:37:05.818z",
+                "linkquality": 116,
+                "motion_sensitivity": "high",
+                "occupancy": false,
+                "temperature": 27.13,
+                "battery": 100,
+                "illuminance_lux": 886,
+                }
+ 
+            }
+        }
+    }
+   ]
+}

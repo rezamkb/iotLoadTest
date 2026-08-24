@@ -1,0 +1,23 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+                "reported":{
+                "state_l1": "on",
+                "last_seen": "2025-06-02t10:30:20.144z",
+                "linkquality": 29,
+                "state_l2": "off",
+                "switch_type": "state"
+                }
+ 
+            }
+        }
+    }
+   ]
+}

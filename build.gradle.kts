@@ -33,7 +33,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("com/example/mqtt/edge/MqttLoadTestEdge2")
+    mainClass.set("org.example.mqtt.edge.EdgeMqttLoadSimulator")
 }
 
 tasks.jar {

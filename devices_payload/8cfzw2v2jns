@@ -1,0 +1,70 @@
+
+{
+
+    "deviceReport":[
+     {
+        "deviceId":"q5rg8lc2kgo",
+        "deviceTwinDocument":{
+
+            "attributes":{
+
+              "reported": {
+                "$version": 53401,
+                "input_freq_t": 0,
+                "last_seen": "2025-02-11t07:12:48.213z",
+                "ups_rated_power": 7000,
+                "input_freq_r": 49.6,
+                "mode_status": 1,
+                "input_freq_s": 0,
+                "voltage_20": 0,
+                "voltage_18": 0,
+                "voltage_19": 0,
+                "alarm_status": 0,
+                "voltage_10": 13.6,
+                "voltage_11": 13.7,
+                "voltage_12": 13.7,
+                "voltage_13": 13.6,
+                "voltage_14": 13.7,
+                "voltage_15": 13.5,
+                "voltage_16": 13.7,
+                "voltage_17": 0,
+                "output_voltage_r": 229,
+                "output_voltage_t": 0,
+                "output_voltage_s": 0,
+                "humidity_1": 32.77,
+                "humidity_2": 32.77,
+                "batt_voltage": 218,
+                "voltage_07": 13.9,
+                "voltage_08": 13.6,
+                "voltage_09": 13.8,
+                "linkquality": 58,
+                "temperature_2": 32.77,
+                "temperature_1": 32.77,
+                "voltage_01": 13.8,
+                "voltage_02": 13.4,
+                "voltage_03": 13.7,
+                "voltage_04": 13.7,
+                "voltage_05": 13.6,
+                "voltage_06": 13.6,
+                "batt_capacity": 68,
+                "output_load_r": 40,
+                "conn_status": 1,
+                "output_load_t": 0,
+                "output_load_s": 0,
+                "dccurrent": 0.021,
+                "input_voltage_r": 224,
+                "input_voltage_s": 0,
+                "ups_model": "ges702r202",
+                "input_voltage_t": 0,
+                "output_current_t": 0,
+                "ups_manufacturer": "elta",
+                "output_current_s": 0,
+                "output_current_r": 0    
+                }
+ 
+            }
+        }
+    }
+   ]
+}
+
