@@ -30,6 +30,9 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
     private final BlockingQueue<OutboundMessage> queue;
     private final ScheduledExecutorService producer;
     private final ExecutorService publisher;
+    private final ExecutorService subscriberSupervisor;
+    private final MqttSubscriberEdge subscriberClient;
+    private final CountDownLatch initialSubscriptionReady = new CountDownLatch(1);
     private final AtomicBoolean running = new AtomicBoolean();
     private final AtomicLong enqueuedCount = new AtomicLong();
     private final AtomicLong publishedCount = new AtomicLong();
@@ -43,10 +46,20 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                 new Thread(r, "edge-message-producer"));
         this.publisher = Executors.newSingleThreadExecutor(r ->
                 new Thread(r, "edge-mqtt-publisher"));
+        this.subscriberSupervisor = Executors.newSingleThreadExecutor(r ->
+                new Thread(r, "edge-mqtt-subscriber-supervisor"));
         this.client = new MqttClient(
                 config.brokerUri(),
                 config.clientId(),
                 new MemoryPersistence()
+        );
+        this.subscriberClient = new MqttSubscriberEdge(
+                config.brokerUri(),
+                config.subscribeTopic(),
+                config.subscriberQos(),
+                config.subscriberClientId(),
+                config.username(),
+                config.password()
         );
     }
 
@@ -85,10 +98,11 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
         simulator.start();
 
         System.out.printf(
-                "Edge simulator started: devices=%d, broker=%s, topic=%s, interval=%dms%n",
+                "Edge simulator started: devices=%d, broker=%s, publishTopic=%s, subscribeTopic=%s, interval=%dms%n",
                 catalog.deviceCount(),
                 config.brokerUri(),
                 config.topic(),
+                config.subscribeTopic(),
                 config.batchInterval().toMillis()
         );
         new CountDownLatch(1).await();
@@ -99,6 +113,19 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
             throw new IllegalStateException("Simulator is already running");
         }
 
+        subscriberSupervisor.execute(this::subscriberLoop);
+        try {
+            if (!initialSubscriptionReady.await(12, TimeUnit.SECONDS)) {
+                System.err.println(
+                        "Subscriber is not connected yet; publishing will start while it keeps retrying"
+                );
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            close();
+            throw new IllegalStateException("Interrupted while waiting for MQTT subscriber", interrupted);
+        }
+
         publisher.execute(this::publishLoop);
         producer.scheduleAtFixedRate(
                 this::enqueueDeviceBatch,
@@ -106,6 +133,42 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                 config.batchInterval().toMillis(),
                 TimeUnit.MILLISECONDS
         );
+    }
+
+    private void subscriberLoop() {
+        long backoffMillis = 1_000;
+        while (running.get() && !Thread.currentThread().isInterrupted()) {
+            try {
+                subscriberClient.start();
+                initialSubscriptionReady.countDown();
+                backoffMillis = 1_000;
+
+                while (running.get() && subscriberClient.isConnected()) {
+                    TimeUnit.MILLISECONDS.sleep(500);
+                }
+            } catch (MqttException failure) {
+                System.err.printf(
+                        "Subscriber connection failed: %s; retrying in %dms%n",
+                        failure.getMessage(),
+                        backoffMillis
+                );
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            } finally {
+                subscriberClient.stop();
+            }
+
+            if (running.get()) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(backoffMillis);
+                    backoffMillis = Math.min(30_000, backoffMillis * 2);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
     }
 
     private void enqueueDeviceBatch() {
@@ -204,8 +267,11 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
 
         producer.shutdownNow();
         publisher.shutdownNow();
+        subscriberSupervisor.shutdownNow();
+        subscriberClient.close();
         try {
             publisher.awaitTermination(5, TimeUnit.SECONDS);
+            subscriberSupervisor.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
@@ -220,9 +286,10 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
         }
 
         System.out.printf(
-                "Edge simulator stopped: enqueued=%,d, published=%,d, remaining=%d%n",
+                "Edge simulator stopped: enqueued=%,d, published=%,d, received=%,d, remaining=%d%n",
                 enqueuedCount(),
                 publishedCount(),
+                subscriberClient.receivedCount(),
                 queue.size()
         );
     }
@@ -233,11 +300,14 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
     record Config(String brokerUri,
                   String topic,
                   String clientId,
+                  String subscribeTopic,
+                  String subscriberClientId,
                   Path devicesCsv,
                   Path payloadDirectory,
                   Duration batchInterval,
                   int queueCapacity,
                   int qos,
+                  int subscriberQos,
                   int generatedVariantCount,
                   int maxInflight,
                   boolean validateOnly,
@@ -259,16 +329,34 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
             if (qos < 0 || qos > 2) {
                 throw new IllegalArgumentException("--qos must be 0, 1, or 2");
             }
+            int subscriberQos = integer(values, "subscriber-qos", 0);
+            if (subscriberQos < 0 || subscriberQos > 2) {
+                throw new IllegalArgumentException("--subscriber-qos must be 0, 1, or 2");
+            }
+
+            String publisherClientId = values.getOrDefault("client-id", EdgeConfig.CLIENT_ID);
+            String subscriberClientId = values.getOrDefault(
+                    "subscriber-client-id",
+                    EdgeConfig.ALTER_CLIENT_ID
+            );
+            if (publisherClientId.equals(subscriberClientId)) {
+                throw new IllegalArgumentException(
+                        "Publisher and subscriber MQTT client IDs must be different"
+                );
+            }
 
             return new Config(
                     values.getOrDefault("broker", EdgeConfig.BROKER_URL),
                     values.getOrDefault("topic", EdgeConfig.PUB_TOPIC),
-                    values.getOrDefault("client-id", EdgeConfig.CLIENT_ID),
+                    publisherClientId,
+                    values.getOrDefault("sub-topic", EdgeConfig.SUB_TOPIC),
+                    subscriberClientId,
                     Path.of(values.getOrDefault("devices", "widgets_devices/1408/m_occupancySensor--switch.csv")),
                     Path.of(values.getOrDefault("payload-dir", "devices_payload")),
                     Duration.ofMillis(intervalMillis),
                     queueCapacity,
                     qos,
+                    subscriberQos,
                     variants,
                     maxInflight,
                     values.containsKey("validate-only"),
@@ -345,11 +433,14 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                       --broker URI             MQTT broker (default from EdgeConfig)
                       --topic TOPIC            publish topic (default from EdgeConfig)
                       --client-id ID           edge MQTT client ID
-                      --devices PATH           device CSV (default: devices5.csv)
+                      --sub-topic TOPIC        edge subscription topic
+                      --subscriber-client-id ID alternate MQTT client ID
+                      --devices PATH           device CSV (default: widgets_devices/1408/m_occupancySensor--switch.csv)
                       --payload-dir PATH       payload samples (default: devices_payload)
                       --interval-ms N          delay between complete device batches
                       --queue-capacity N       bounded outbound queue capacity
                       --qos 0|1|2              MQTT publish QoS
+                      --subscriber-qos 0|1|2   MQTT subscription QoS
                       --variants N             variants generated for a single sample
                       --max-inflight N         Paho in-flight message limit
                       --validate-only          build and verify mapping without MQTT

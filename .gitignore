@@ -1,4 +1,6 @@
 .gradle
+.codex-gradle-home/
+.codex-gradle-project-cache/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
