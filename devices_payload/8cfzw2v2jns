@@ -9,7 +9,6 @@
             "attributes":{
 
               "reported": {
-                "$version": 53401,
                 "input_freq_t": 0,
                 "last_seen": "2025-02-11t07:12:48.213z",
                 "ups_rated_power": 7000,

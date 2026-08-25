@@ -2,18 +2,16 @@
   "deviceReport": [
     {
       "deviceId": "replace-with-device-id",
-      "deviceTwinDocument": {
-        "attributes": {
-          "reported": {
-            "contact": false,
-            "tamper": false,
-            "battery": 96,
-            "battery_low": false,
-            "voltage": 2980,
-            "last_seen": "2026-08-24T08:00:00Z",
-            "linkquality": 91
+      {
+          "deviceTwinDocument":{
+              "attributes":{
+                  "reported":{
+                         "isAlive" : "offline",
+                        "isRecording" : "no",
+                          "isStreaming" : true
+                  }
+              }
           }
-        }
       }
     }
   ]

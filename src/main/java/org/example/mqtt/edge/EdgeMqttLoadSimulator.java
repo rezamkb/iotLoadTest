@@ -251,7 +251,7 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                 return null;
             }
 
-            long intervalMillis = positiveLong(values, "interval-ms", 1_000);
+            long intervalMillis = positiveLong(values, "interval-ms", 2_000);
             int queueCapacity = positiveInt(values, "queue-capacity", 100_000);
             int variants = positiveInt(values, "variants", 3);
             int maxInflight = positiveInt(values, "max-inflight", 10_000);
@@ -264,7 +264,7 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                     values.getOrDefault("broker", EdgeConfig.BROKER_URL),
                     values.getOrDefault("topic", EdgeConfig.PUB_TOPIC),
                     values.getOrDefault("client-id", EdgeConfig.CLIENT_ID),
-                    Path.of(values.getOrDefault("devices", "devices5.csv")),
+                    Path.of(values.getOrDefault("devices", "widgets_devices/1408/m_occupancySensor--switch.csv")),
                     Path.of(values.getOrDefault("payload-dir", "devices_payload")),
                     Duration.ofMillis(intervalMillis),
                     queueCapacity,

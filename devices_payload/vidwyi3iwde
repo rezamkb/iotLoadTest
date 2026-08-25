@@ -2,18 +2,40 @@
   "deviceReport": [
     {
       "deviceId": "replace-with-device-id",
-      "deviceTwinDocument": {
-        "attributes": {
-          "reported": {
-            "state": "off",
-            "armed": false,
-            "alarm": false,
-            "active_zones": 0,
-            "last_seen": "2026-08-24T08:00:00Z",
-            "linkquality": 75
+      {
+          {
+              "deviceTwinDocument":{
+                  "attributes":{
+                      "reported":{
+                             "eventCode" : "E130"
+
+                      }
+                  }
+              }
           }
-        }
       }
     }
   ]
 }
+
+{
+  "deviceReport": [
+    {
+      "deviceId": "replace-with-device-id",
+      {
+          {
+              "deviceTwinDocument":{
+                  "attributes":{
+                      "reported":{
+                             "eventCode" : "R401"
+
+                      }
+                  }
+              }
+          }
+      }
+    }
+  ]
+}
+
+

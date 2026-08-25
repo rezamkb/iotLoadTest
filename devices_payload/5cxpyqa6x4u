@@ -33,40 +33,6 @@
 
 
 
-{
-
-    "deviceReport":[
-     {
-        "deviceId":"q5rg8lc2kgo",
-        "deviceTwinDocument":{
-
-            "attributes":{
-
-                "reported":{
-
-                   "last_seen": "2025-05-03t07:40:54.996z",
-                "power_l2": 0,
-                "power_l3": 0,
-                "voltage_l3": 0.1,
-                "power_l1": 0,
-                "linkquality": 43,
-                "current_l3": 0,
-                "current_l2": 0,
-                "power": 0,
-                "current_l1": 0,
-                "voltage_l1": 227.4,
-                "energy": 0,
-                "voltage_l2": 0.1
-                }
-            }
-        }
-    }
-   ]
-}
-
-
-
-
 
 
 

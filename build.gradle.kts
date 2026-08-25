@@ -12,9 +12,25 @@ java {
     }
 }
 
+
 repositories {
-    mavenCentral()
+    mavenLocal()
+
+    maven {
+        url = uri("https://nrp.devpod.ir/repository/Maven-group-proxy")
+    }
+
+    maven {
+        name = "nexus"
+        url = uri("https://nexus.dotin.ir/nexus/content/groups/Core")
+
+        credentials {
+            username = "core"
+            password = "YOUR_PASSWORD"
+        }
+    }
 }
+
 
 dependencies {
 
