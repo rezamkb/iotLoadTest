@@ -41,6 +41,15 @@ class DeviceMessageCatalogTest {
 
         assertEquals("device-a", first.at("/deviceReport/0/deviceId").asText());
         assertEquals("device-a", second.at("/deviceReport/0/deviceId").asText());
+        assertEquals(9, first.at(
+                "/deviceReport/0/deviceTwinDocument/attributes/reported/co2"
+        ).asInt());
+        assertEquals(99, second.at(
+                "/deviceReport/0/deviceTwinDocument/attributes/reported/co2"
+        ).asInt());
+        assertEquals(999, third.at(
+                "/deviceReport/0/deviceTwinDocument/attributes/reported/co2"
+        ).asInt());
         assertNotEquals(
                 first.at("/deviceReport/0/deviceTwinDocument/attributes/reported/value"),
                 second.at("/deviceReport/0/deviceTwinDocument/attributes/reported/value")
@@ -115,6 +124,7 @@ class DeviceMessageCatalogTest {
                         "attributes": {
                           "reported": {
                             "value": %d,
+                            "co2": 500,
                             "enabled": %s,
                             "last_seen": "2026-01-01T00:00:00Z"
                           }

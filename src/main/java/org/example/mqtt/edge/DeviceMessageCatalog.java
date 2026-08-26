@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class DeviceMessageCatalog {
     private static final int DEFAULT_VARIANT_COUNT = 3;
+    private static final long[] CO2_VARIANT_VALUES = {9, 99, 999};
 
     private static final ObjectMapper MAPPER = new ObjectMapper(
             JsonFactory.builder()
@@ -221,9 +222,24 @@ final class DeviceMessageCatalog {
             if (index > 0) {
                 varyReportedAttributes(variant, index);
             }
+            applyExplicitVariantValues(variant, index);
             variants.add(variant);
         }
         return variants;
+    }
+
+    private static void applyExplicitVariantValues(JsonNode payload, int variantIndex) {
+        long co2Value = CO2_VARIANT_VALUES[
+                Math.floorMod(variantIndex, CO2_VARIANT_VALUES.length)
+        ];
+        for (JsonNode report : payload.path("deviceReport")) {
+            JsonNode reported = report.path("deviceTwinDocument")
+                    .path("attributes")
+                    .path("reported");
+            if (reported instanceof ObjectNode attributes && attributes.has("co2")) {
+                attributes.put("co2", co2Value);
+            }
+        }
     }
 
     private static void varyReportedAttributes(JsonNode payload, int variantIndex) {
