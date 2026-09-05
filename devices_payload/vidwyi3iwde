@@ -2,40 +2,17 @@
   "deviceReport": [
     {
       "deviceId": "replace-with-device-id",
-      {
-          {
+
+
               "deviceTwinDocument":{
                   "attributes":{
                       "reported":{
-                             "eventCode" : "E130"
+                             "event_code" : "E130"
 
                       }
                   }
-              }
-          }
-      }
+            }
+
     }
   ]
 }
-
-{
-  "deviceReport": [
-    {
-      "deviceId": "replace-with-device-id",
-      {
-          {
-              "deviceTwinDocument":{
-                  "attributes":{
-                      "reported":{
-                             "eventCode" : "R401"
-
-                      }
-                  }
-              }
-          }
-      }
-    }
-  ]
-}
-
-

@@ -7,7 +7,7 @@
 
     "deviceReport":[
      {
-        "deviceId":"q5rg8lc2kgo",
+        "deviceId":"lj0c837t30k",
         "deviceTwinDocument":{
 
             "attributes":{
@@ -22,8 +22,8 @@
                 "humidity": 36,
                 "running_state": "fan_only",
                 "local_temperature": 23.5,
-                "fan_state": "on",
-                "system_mode": "heat"
+                "fan_state": "high",
+                "system_mode": "fan_only"
                 }
  
             }

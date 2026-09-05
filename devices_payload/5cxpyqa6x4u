@@ -20,7 +20,7 @@
                 "occupied_cooling_setpoint": 25,
                 "local_temperature": 29.4,
                 "fan_state": "on",
-                "system_mode": "cool"     
+                "system_mode": "fan_only"
                 }
  
             }

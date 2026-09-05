@@ -1,4 +1,3 @@
-
 {
 
     "deviceReport":[
@@ -10,10 +9,11 @@
 
                 "reported":{
                 "tamper": false,
+                 "temperature": 29,
                 "last_seen": "2025-05-03t04:04:58.193z",
                 "linkquality": 156,
                 "contact": false,
-                "battery": 100,
+                "battery": 70,
                 "battery_low": false,
                 "voltage": 3000
                 }

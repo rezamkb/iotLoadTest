@@ -251,7 +251,7 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                 return null;
             }
 
-            long intervalMillis = positiveLong(values, "interval-ms", 2_000);
+            long intervalMillis = positiveLong(values, "interval-ms", 3_000);
             int queueCapacity = positiveInt(values, "queue-capacity", 100_000);
             int variants = positiveInt(values, "variants", 3);
             int maxInflight = positiveInt(values, "max-inflight", 10_000);
@@ -260,11 +260,14 @@ public final class EdgeMqttLoadSimulator implements AutoCloseable {
                 throw new IllegalArgumentException("--qos must be 0, 1, or 2");
             }
 
+            //m_paradox
+            //Doorbin
+            //m_thermostat
             return new Config(
                     values.getOrDefault("broker", EdgeConfig.BROKER_URL),
                     values.getOrDefault("topic", EdgeConfig.PUB_TOPIC),
                     values.getOrDefault("client-id", EdgeConfig.CLIENT_ID),
-                    Path.of(values.getOrDefault("devices", "widgets_devices/1408/m_occupancySensor--switch.csv")),
+                    Path.of(values.getOrDefault("devices", "widgets_devices/1408/devices_all.csv")),
                     Path.of(values.getOrDefault("payload-dir", "devices_payload")),
                     Duration.ofMillis(intervalMillis),
                     queueCapacity,

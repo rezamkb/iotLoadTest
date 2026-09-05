@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class DeviceMessageCatalog {
     private static final int DEFAULT_VARIANT_COUNT = 3;
+    private static final long[] CO2_VARIANT_VALUES = {9, 99, 999};
 
     private static final ObjectMapper MAPPER = new ObjectMapper(
             JsonFactory.builder()
@@ -221,9 +222,24 @@ final class DeviceMessageCatalog {
             if (index > 0) {
                 varyReportedAttributes(variant, index);
             }
+            applyExplicitVariantValues(variant, index);
             variants.add(variant);
         }
         return variants;
+    }
+
+    private static void applyExplicitVariantValues(JsonNode payload, int variantIndex) {
+        long co2Value = CO2_VARIANT_VALUES[
+                Math.floorMod(variantIndex, CO2_VARIANT_VALUES.length)
+        ];
+        for (JsonNode report : payload.path("deviceReport")) {
+            JsonNode reported = report.path("deviceTwinDocument")
+                    .path("attributes")
+                    .path("reported");
+            if (reported instanceof ObjectNode attributes && attributes.has("co2")) {
+                attributes.put("co2", co2Value);
+            }
+        }
     }
 
     private static void varyReportedAttributes(JsonNode payload, int variantIndex) {
@@ -288,8 +304,23 @@ final class DeviceMessageCatalog {
                     .minus(variantIndex, ChronoUnit.SECONDS)
                     .toString();
         }
-
         String normalized = value.toLowerCase(Locale.ROOT);
+
+
+        if (fieldName.equalsIgnoreCase("system_mode")) {
+            return switch (normalized){
+                case "fan_only" -> variantIndex % 2 == 1 ? "heat" : "cool";
+                case "cool" -> variantIndex % 2 == 1 ? "heat" : "off";
+                case "off" -> variantIndex % 2 == 1 ? "fan_only" : "fan_only";
+
+//                case "fan_only" -> "heat";
+//                case "heat" -> "cool";
+//                case "cool" -> "off";
+//                case "off" -> "fan_only";
+                default -> "fan_only";
+            };
+        }
+
         return switch (normalized) {
             case "on" -> variantIndex % 2 == 1 ? "off" : "on";
             case "off" -> variantIndex % 2 == 1 ? "on" : "off";
@@ -297,6 +328,17 @@ final class DeviceMessageCatalog {
             case "close", "closed" -> variantIndex % 2 == 1 ? "open" : value;
             case "high" -> variantIndex % 2 == 1 ? "medium" : "low";
             case "low" -> variantIndex % 2 == 1 ? "medium" : "high";
+            case "r401" -> variantIndex % 2 == 1 ? "e130" : "r401";
+            case "e130" -> variantIndex % 2 == 1 ? "r401" : "e130";
+            case "offline" -> variantIndex % 2 == 1 ? "online" : "offline";
+            case "online" -> variantIndex % 2 == 1 ? "offline" : "online";
+            case "yes" -> variantIndex % 2 == 1 ? "no" : "yes";
+            case "no" -> variantIndex % 2 == 1 ? "yes" : "no";
+            case "heat" -> variantIndex % 2 == 1 ? "cool" : "heat";
+            case "cool" -> variantIndex % 2 == 1 ? "heat" : "cool";
+
+
+
             default -> value;
         };
     }
