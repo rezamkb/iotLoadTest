@@ -74,3 +74,23 @@ tasks.jar {
 tasks.test {
     useJUnitPlatform()
 }
+
+// ---------------------------------------------------------------------------
+// cepbench: control plane for a CEP benchmark environment (Phase 1).
+//
+//   ./gradlew.bat cepbench -Pcommand=plan
+//   ./gradlew.bat cepbench -Pcommand=provision -Pconfig=path/to/config.json
+//
+// Mutating commands additionally require CEPBENCH_CONFIRM=<runId>@<api host>.
+// ---------------------------------------------------------------------------
+tasks.register<JavaExec>("cepbench") {
+    group = "application"
+    description = "Provision, activate, inspect and clean up a CEP benchmark environment"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.example.cepbench.CepBenchMain")
+    args(
+        providers.gradleProperty("command").getOrElse("plan"),
+        providers.gradleProperty("config")
+            .getOrElse("src/main/resources/cepbench.sandbox.example.json")
+    )
+}
