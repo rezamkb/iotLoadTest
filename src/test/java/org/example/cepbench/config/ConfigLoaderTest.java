@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -72,6 +73,62 @@ class ConfigLoaderTest {
                 () -> loaderWith(Map.of()).parse(json(VALID)));
 
         assertTrue(failure.getMessage().contains("CEPBENCH_API_TOKEN"), failure.getMessage());
+    }
+
+    @Test
+    void aTokenPastedIntoTheVariableNameFieldIsRejectedWithoutEchoingIt() {
+        // Shaped like a JWT, deliberately not derived from any real token.
+        String jwt = "aaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbb.cccccccccccccccccccc";
+        String raw = VALID.replace("\"CEPBENCH_API_TOKEN\"", "\"" + jwt + "\"");
+
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> loaderWith(Map.of()).parse(json(raw)));
+
+        assertTrue(thrown.getMessage().contains("must be the NAME of an environment variable"),
+                thrown.getMessage());
+        assertFalse(thrown.getMessage().contains(jwt),
+                "a pasted credential must never be echoed back into logs");
+    }
+
+    @Test
+    void anInlineTokenIsAcceptedAndNeedsNoEnvironmentVariable() {
+        String raw = VALID.replace("\"tokenEnvironmentVariable\": \"CEPBENCH_API_TOKEN\"",
+                "\"token\": \"raw-token-value\"");
+
+        BenchmarkConfig config = loaderWith(Map.of()).parse(json(raw));
+
+        assertEquals("raw-token-value", config.platform().token());
+    }
+
+    @Test
+    void anInlineTokenWinsOverTheEnvironmentVariable() {
+        String raw = VALID.replace("\"tokenEnvironmentVariable\": \"CEPBENCH_API_TOKEN\"",
+                "\"token\": \"from-config\", \"tokenEnvironmentVariable\": \"CEPBENCH_API_TOKEN\"");
+
+        BenchmarkConfig config = loaderWith(Map.of("CEPBENCH_API_TOKEN", "from-environment")).parse(json(raw));
+
+        assertEquals("from-config", config.platform().token());
+    }
+
+    @Test
+    void anInlineTokenCarryingTheBearerPrefixIsRejected() {
+        String raw = VALID.replace("\"tokenEnvironmentVariable\": \"CEPBENCH_API_TOKEN\"",
+                "\"token\": \"Bearer abc\"");
+
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> loaderWith(Map.of()).parse(json(raw)));
+
+        assertTrue(thrown.getMessage().contains("without the \"Bearer \" prefix"), thrown.getMessage());
+    }
+
+    @Test
+    void neitherTokenNorVariableIsRejected() {
+        String raw = VALID.replace("\"tokenEnvironmentVariable\": \"CEPBENCH_API_TOKEN\",", "");
+
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> loaderWith(Map.of()).parse(json(raw)));
+
+        assertTrue(thrown.getMessage().contains("tokenEnvironmentVariable"), thrown.getMessage());
     }
 
     @Test

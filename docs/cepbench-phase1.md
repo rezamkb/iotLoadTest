@@ -29,10 +29,30 @@ $env:CEPBENCH_API_TOKEN = '<sandbox bearer token, without the "Bearer " prefix>'
 $env:CEPBENCH_CONFIRM   = 'drools-baseline-001@api.sandpod.ir'
 ```
 
-The token is never read from the config file; the file only names the environment variable holding
-it. Every command except `plan` and `status` additionally requires `CEPBENCH_CONFIRM` to equal
+Every command except `plan`, `status` and `export` additionally requires `CEPBENCH_CONFIRM` to equal
 `<runId>@<api host>` exactly. Provisioning creates hundreds of resources on a shared sandbox and
 cleanup deletes them, so the operator has to name both the run and the target host.
+
+### Where the token lives
+
+Two options, and the config picks whichever is present:
+
+| Field | Meaning |
+|---|---|
+| `tokenEnvironmentVariable` | Name of an environment variable holding the token. Keeps the config committable. |
+| `token` | The raw bearer token, inline. Convenient; the file must not be committed. |
+
+If both appear, `token` wins. Either way the value is the raw token — the client adds `Bearer `, and
+a value that already carries the prefix is rejected.
+
+`*.local.json` is in `.gitignore`, so `cepbench.local.json` is the place for an inline token.
+`src/main/resources/cepbench.local.json` ships as a ready-to-edit starter with a small scenario mix.
+`cepbench.sandbox.example.json` stays on the environment-variable form and stays committable.
+
+The one thing to know about the inline form: a token in a file is a token you can leak by sharing
+the file, and `.gitignore` only protects against `git add`, not against copying the file into a
+ticket or a chat. For a shared sandbox token that is usually an acceptable trade; for anything
+tied to a real account it is not.
 
 ## What one run owns
 

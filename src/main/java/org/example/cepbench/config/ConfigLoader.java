@@ -25,6 +25,11 @@ public final class ConfigLoader {
     /** Run ids become part of every resource name, so keep them short and shell safe. */
     private static final Pattern RUN_ID = Pattern.compile("[a-z0-9][a-z0-9-]{2,31}");
     private static final Pattern LOCATION_CODE = Pattern.compile("[A-Za-z0-9_-]{1,32}");
+    /**
+     * Shape of an environment variable name. A JWT fails it on the dots alone, which is the whole
+     * point: the field names where the token lives, it never holds one.
+     */
+    private static final Pattern ENV_VARIABLE_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,63}");
     private static final int MAX_CONCURRENCY = 32;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -99,10 +104,29 @@ public final class ConfigLoader {
             }
         }
 
+        // Two ways to supply the token. "token" is the blunt one: convenient, and the reason
+        // .gitignore excludes *.local.json. "tokenEnvironmentVariable" keeps the file committable.
+        // When both are present the inline value wins, because it is the more specific choice.
+        String inlineToken = text(node, "token", "").trim();
         String tokenVariable = text(node, "tokenEnvironmentVariable", "").trim();
         String token = "";
-        if (tokenVariable.isEmpty()) {
-            problems.add("platform.tokenEnvironmentVariable is required; tokens are never read from the config file");
+
+        if (!inlineToken.isEmpty()) {
+            token = inlineToken;
+            if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                problems.add("platform.token must hold the raw token, without the \"Bearer \" prefix");
+            }
+        } else if (tokenVariable.isEmpty()) {
+            problems.add("platform needs either \"token\" (the raw bearer token, for a config file you "
+                    + "do not commit) or \"tokenEnvironmentVariable\" (the name of an environment "
+                    + "variable holding it)");
+        } else if (!ENV_VARIABLE_NAME.matcher(tokenVariable).matches()) {
+            // Almost always a token pasted into the field that should name where to find one. The
+            // value is deliberately not echoed: it is very likely a live credential, and repeating
+            // it would put it in the console, the CI log and the bug report.
+            problems.add("platform.tokenEnvironmentVariable must be the NAME of an environment variable, "
+                    + "such as CEPBENCH_API_TOKEN, not the token itself. Either put the token in that "
+                    + "variable, or use the \"token\" field instead if you want it in the config file.");
         } else {
             String resolved = environment.apply(tokenVariable);
             if (resolved == null || resolved.isBlank()) {
