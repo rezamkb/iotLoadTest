@@ -1,0 +1,28 @@
+{
+  "platform": {
+    "apiBaseUrl": "https://api.sandpod.ir/srv/iotsand",
+    "tokenEnvironmentVariable": "CEPBENCH_API_TOKEN",
+    "connectTimeoutSeconds": 10,
+    "requestTimeoutSeconds": 60,
+    "activationTimeoutSeconds": 180,
+    "activationPollIntervalMillis": 1000,
+    "concurrency": 4
+  },
+  "run": {
+    "runId": "drools-baseline-001",
+    "locationCode": "1000",
+    "scenarios": {
+      "singleSelect": 45,
+      "multiSelectTwoDevice": 10,
+      "windowing": 45
+    },
+    "maxRulesPerDevice": 1,
+    "alarmTypeCode": "9001",
+    "template": {
+      "temperatureThreshold": 40,
+      "windowAverageThreshold": 100,
+      "windowLength": 3
+    }
+  },
+  "manifestDirectory": ".cepbench"
+}

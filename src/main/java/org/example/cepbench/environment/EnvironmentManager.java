@@ -1,0 +1,487 @@
+package org.example.cepbench.environment;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import org.example.cepbench.client.PlatformApiClient;
+import org.example.cepbench.client.PlatformApiException;
+import org.example.cepbench.config.BenchmarkConfig;
+import org.example.cepbench.manifest.ManifestJournal;
+import org.example.cepbench.manifest.ManifestState;
+import org.example.cepbench.manifest.ResourceKind;
+import org.example.cepbench.manifest.ResourceRef;
+import org.example.cepbench.model.EnvironmentPlan;
+import org.example.cepbench.model.RuleScenario;
+import org.example.cepbench.planning.EnvironmentPlanner;
+import org.example.cepbench.template.RuleTemplates;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+/**
+ * Creates, activates and removes the platform resources one benchmark run owns.
+ *
+ * <p>Everything it creates is recorded in a {@link ManifestJournal} before the next call is made, and
+ * everything it deletes comes from that journal. It never searches the platform by name, so a
+ * resource it did not create is never adopted and never deleted, however similar the name.
+ *
+ * <p>Provisioning is resumable. The plan is deterministic, so a run interrupted half way through can
+ * be restarted and will create only what the journal does not already record.
+ */
+public final class EnvironmentManager implements Closeable {
+
+    private static final String DEVICE_TYPE_DESCRIPTION = "cepbench synthetic device type";
+    private static final String DEVICE_DESCRIPTION = "cepbench synthetic device";
+    private static final String ALARM_TYPE_DESCRIPTION = "cepbench synthetic alarm type";
+    private static final String ALARM_SEVERITY = "Warn";
+    private static final Map<String, String> DEVICE_ATTRIBUTES = Map.of(
+            "temp", "number",
+            "occ", "boolean");
+
+    private final BenchmarkConfig config;
+    private final PlatformApiClient client;
+    private final ManifestJournal journal;
+    private final EnvironmentPlan plan;
+    private final RuleTemplates templates = new RuleTemplates();
+    private final ExecutorService executor;
+
+    private EnvironmentManager(BenchmarkConfig config,
+                               PlatformApiClient client,
+                               ManifestJournal journal,
+                               EnvironmentPlan plan) {
+        this.config = config;
+        this.client = client;
+        this.journal = journal;
+        this.plan = plan;
+        this.executor = Executors.newFixedThreadPool(config.platform().concurrency());
+    }
+
+    public static EnvironmentManager open(BenchmarkConfig config) throws IOException {
+        EnvironmentPlan plan = new EnvironmentPlanner().plan(config.run());
+        ManifestJournal journal = ManifestJournal.open(
+                config.manifestDirectory(), config.run().runId(), config.platform().apiBaseUrl());
+        return new EnvironmentManager(config, new PlatformApiClient(config.platform()), journal, plan);
+    }
+
+    public EnvironmentPlan plan() {
+        return plan;
+    }
+
+    // ================================================================ provision
+
+    /** Creates whatever the plan calls for and the journal does not already record. */
+    public CommandReport provision() throws IOException {
+        CommandReport.Builder report = CommandReport.builder("provision", plan.runId());
+        ManifestState state = state(report);
+
+        report.fact("manifest", journal.file().toString());
+        report.fact("devicesPlanned", plan.deviceCount());
+        report.fact("rulesPlanned", plan.ruleCount());
+        for (RuleScenario scenario : RuleScenario.values()) {
+            report.fact("rulesPlanned." + scenario.slug(), plan.ruleCount(scenario));
+        }
+        report.fact("maxRulesPerDevice", config.run().maxRulesPerDevice());
+
+        String deviceTypeId = ensureSingleton(
+                state.deviceType(), ResourceKind.DEVICE_TYPE, ResourceKind.DEVICE_TYPE_KEY,
+                plan.deviceTypeName(),
+                () -> client.createDeviceType(plan.deviceTypeName(), DEVICE_TYPE_DESCRIPTION, DEVICE_ATTRIBUTES),
+                report);
+        String alarmTypeId = ensureSingleton(
+                state.alarmType(), ResourceKind.ALARM_TYPE, ResourceKind.ALARM_TYPE_KEY,
+                plan.alarmTypeName(),
+                () -> client.createAlarmType(plan.alarmTypeName(), config.run().alarmTypeCode(),
+                        ALARM_TYPE_DESCRIPTION, ALARM_SEVERITY),
+                report);
+
+        if (deviceTypeId == null || alarmTypeId == null) {
+            report.fail("Cannot continue without both a device type and an alarm type");
+            return report.build();
+        }
+        report.fact("deviceTypeId", deviceTypeId);
+        report.fact("alarmTypeId", alarmTypeId);
+
+        Map<String, String> deviceIdsByKey = provisionDevices(state, deviceTypeId, report);
+        provisionRules(state, alarmTypeId, deviceIdsByKey, report);
+
+        ManifestState after = state(report);
+        report.fact("devicesNow", after.count(ResourceKind.DEVICE));
+        report.fact("rulesNow", after.count(ResourceKind.RULE));
+        if (after.count(ResourceKind.RULE) < plan.ruleCount()) {
+            report.warn("Not every planned rule exists yet; provision is resumable, so re-running it "
+                    + "will create only what is missing");
+        }
+        return report.build();
+    }
+
+    private Map<String, String> provisionDevices(ManifestState state,
+                                                 String deviceTypeId,
+                                                 CommandReport.Builder report) {
+        Map<String, String> deviceIdsByKey = new ConcurrentHashMap<>();
+        state.of(ResourceKind.DEVICE).forEach((key, ref) -> deviceIdsByKey.put(key, ref.id()));
+
+        List<EnvironmentPlan.PlannedDevice> missing = plan.devices().stream()
+                .filter(device -> !deviceIdsByKey.containsKey(device.key()))
+                .toList();
+        report.fact("devicesExisting", plan.deviceCount() - missing.size());
+
+        JsonNode tags = templates.renderTags(config.run().locationCode());
+        Map<EnvironmentPlan.PlannedDevice, String> failures = forEachConcurrently(missing, device -> {
+            String id = client.createDevice(
+                    device.name(), DEVICE_DESCRIPTION, deviceTypeId, device.key(), tags);
+            journal.recordCreated(ResourceKind.DEVICE, device.key(), id, device.name());
+            deviceIdsByKey.put(device.key(), id);
+        });
+
+        report.fact("devicesCreated", missing.size() - failures.size());
+        recordFailures(failures, report, device -> "device " + device.name());
+        return deviceIdsByKey;
+    }
+
+    private void provisionRules(ManifestState state,
+                                String alarmTypeId,
+                                Map<String, String> deviceIdsByKey,
+                                CommandReport.Builder report) {
+        Set<String> existing = state.of(ResourceKind.RULE).keySet();
+        List<EnvironmentPlan.PlannedRule> missing = plan.rules().stream()
+                .filter(rule -> !existing.contains(rule.key()))
+                .toList();
+        report.fact("rulesExisting", plan.ruleCount() - missing.size());
+
+        JsonNode then = templates.renderThen(alarmTypeId);
+        JsonNode tags = templates.renderTags(config.run().locationCode());
+
+        Map<EnvironmentPlan.PlannedRule, String> failures = forEachConcurrently(missing, rule -> {
+            List<String> deviceIds = new ArrayList<>(rule.deviceKeys().size());
+            for (String deviceKey : rule.deviceKeys()) {
+                String deviceId = deviceIdsByKey.get(deviceKey);
+                if (deviceId == null) {
+                    // Its device failed earlier. Skipping keeps the environment consistent rather
+                    // than creating a rule that selects on a device that does not exist.
+                    throw new IllegalStateException("device " + deviceKey + " was not created");
+                }
+                deviceIds.add(deviceId);
+            }
+            String when = templates.renderWhen(rule.scenario(), deviceIds, config.run().template());
+            PlatformApiClient.RuleView created = client.createRule(rule.name(), when, then, tags);
+            journal.recordCreated(ResourceKind.RULE, rule.key(), created.id(), rule.name());
+            if (created.activated()) {
+                report.warn("Rule " + rule.name() + " came back already activated; "
+                        + "provision expects rules to start inactive");
+            }
+        });
+
+        report.fact("rulesCreated", missing.size() - failures.size());
+        recordFailures(failures, report, rule -> "rule " + rule.name());
+    }
+
+    // ================================================================ activation
+
+    public CommandReport activateAll() throws IOException {
+        return changeActivation(true);
+    }
+
+    public CommandReport deactivateAll() throws IOException {
+        return changeActivation(false);
+    }
+
+    /**
+     * Requests the state change for every rule, then polls until the platform actually reports it.
+     *
+     * <p>The request and the confirmation are separated on purpose. Activation is asynchronous: the
+     * API accepts the call and a command travels to the CEP node, so a success status means the
+     * request was taken, not that the rule is compiled into the engine. Sending events before the
+     * rules are really active is the easiest way to produce a benchmark result that means nothing.
+     */
+    private CommandReport changeActivation(boolean activate) throws IOException {
+        String command = activate ? "activate" : "deactivate";
+        CommandReport.Builder report = CommandReport.builder(command, plan.runId());
+        ManifestState state = state(report);
+
+        Collection<ResourceRef> rules = state.of(ResourceKind.RULE).values();
+        report.fact("rules", rules.size());
+        if (rules.isEmpty()) {
+            report.warn("The manifest records no rules; run provision first");
+            return report.build();
+        }
+
+        Instant started = Instant.now();
+        Map<ResourceRef, String> requestFailures = forEachConcurrently(rules, rule -> {
+            if (activate) {
+                client.activateRule(rule.id());
+            } else {
+                client.deactivateRule(rule.id());
+            }
+        });
+        recordFailures(requestFailures, report, rule -> command + " " + rule.name());
+
+        Set<ResourceRef> pending = new LinkedHashSet<>(rules);
+        Instant deadline = started.plus(config.platform().activationTimeout());
+        Map<ResourceRef, String> pollErrors = Map.of();
+
+        while (true) {
+            Set<ResourceRef> confirmed = ConcurrentHashMap.newKeySet();
+            // Poll errors are not reported directly: a transient failure on one round is expected and
+            // means nothing if a later round confirms the rule. Only rules still pending at the
+            // deadline are failures, and then the last error explains why.
+            pollErrors = forEachConcurrently(List.copyOf(pending), rule -> {
+                if (client.getRule(rule.id()).activated() == activate) {
+                    confirmed.add(rule);
+                }
+            });
+            pending.removeAll(confirmed);
+
+            if (pending.isEmpty() || !Instant.now().isBefore(deadline)) {
+                break;
+            }
+            sleep(config.platform().activationPollInterval());
+        }
+
+        report.fact("confirmed", rules.size() - pending.size());
+        report.fact("elapsedMillis", Duration.between(started, Instant.now()).toMillis());
+        if (!pending.isEmpty()) {
+            report.fail("%d rule(s) did not reach %s within %s; first few: %s".formatted(
+                    pending.size(),
+                    activate ? "activated" : "deactivated",
+                    config.platform().activationTimeout(),
+                    pending.stream().limit(10).map(ResourceRef::name).toList()));
+            // Copied because the loop reassigns it, and a lambda may only capture an effectively
+            // final local.
+            Map<ResourceRef, String> lastRound = pollErrors;
+            lastRound.entrySet().stream().limit(3).forEach(entry ->
+                    report.warn("Last poll error for " + entry.getKey().name() + ": " + entry.getValue()));
+        }
+        return report.build();
+    }
+
+    // ================================================================ status
+
+    /** Read only. Reports what the manifest owns and what the platform currently says about it. */
+    public CommandReport status() throws IOException {
+        CommandReport.Builder report = CommandReport.builder("status", plan.runId());
+        ManifestState state = state(report);
+
+        report.fact("manifest", journal.file().toString());
+        report.fact("apiBaseUrl", config.platform().apiBaseUrl());
+        report.fact("deviceType", state.deviceType().map(ResourceRef::id).orElse("<none>"));
+        report.fact("alarmType", state.alarmType().map(ResourceRef::id).orElse("<none>"));
+        report.fact("devicesPlanned", plan.deviceCount());
+        report.fact("devices", state.count(ResourceKind.DEVICE));
+        report.fact("rulesPlanned", plan.ruleCount());
+        report.fact("rules", state.count(ResourceKind.RULE));
+
+        Collection<ResourceRef> rules = state.of(ResourceKind.RULE).values();
+        if (rules.isEmpty()) {
+            return report.build();
+        }
+
+        Set<String> active = ConcurrentHashMap.newKeySet();
+        Set<String> inactive = ConcurrentHashMap.newKeySet();
+        Set<String> missing = ConcurrentHashMap.newKeySet();
+
+        Map<ResourceRef, String> failures = forEachConcurrently(rules, rule -> {
+            try {
+                if (client.getRule(rule.id()).activated()) {
+                    active.add(rule.id());
+                } else {
+                    inactive.add(rule.id());
+                }
+            } catch (PlatformApiException e) {
+                if (!e.isNotFound()) {
+                    throw e;
+                }
+                // The journal says we created it, the platform says it is gone: deleted outside the
+                // benchmark. Cleanup will treat it as already removed.
+                missing.add(rule.id());
+            }
+        });
+        recordFailures(failures, report, rule -> "status " + rule.name());
+
+        report.fact("rulesActive", active.size());
+        report.fact("rulesInactive", inactive.size());
+        report.fact("rulesMissingOnPlatform", missing.size());
+        if (!missing.isEmpty()) {
+            report.warn(missing.size() + " rule(s) in the manifest no longer exist on the platform");
+        }
+        if (!active.isEmpty() && !inactive.isEmpty()) {
+            report.warn("Rules are in mixed activation states; a load run started now would not be "
+                    + "attributable to a rule count");
+        }
+        return report.build();
+    }
+
+    // ================================================================ cleanup
+
+    /**
+     * Deletes every resource the journal records, in reverse dependency order, appending a tombstone
+     * after each confirmed delete so an interrupted cleanup can simply be re-run.
+     */
+    public CommandReport cleanup() throws IOException {
+        CommandReport.Builder report = CommandReport.builder("cleanup", plan.runId());
+        ManifestState state = state(report);
+
+        deleteAll(state, ResourceKind.RULE, report);
+        deleteAll(state, ResourceKind.DEVICE, report);
+        deleteAll(state, ResourceKind.ALARM_TYPE, report);
+        deleteAll(state, ResourceKind.DEVICE_TYPE, report);
+
+        ManifestState after = state(report);
+        int remaining = totalLive(after);
+        report.fact("remaining", remaining);
+        if (remaining == 0) {
+            report.fact("outcome", "manifest is empty; keep the journal file as the audit record");
+        }
+        return report.build();
+    }
+
+    private void deleteAll(ManifestState state, ResourceKind kind, CommandReport.Builder report) {
+        Collection<ResourceRef> refs = state.of(kind).values();
+        if (refs.isEmpty()) {
+            return;
+        }
+        Set<String> alreadyGone = ConcurrentHashMap.newKeySet();
+
+        Map<ResourceRef, String> failures = forEachConcurrently(refs, ref -> {
+            if (!client.delete(kind.pathSegment(), ref.id())) {
+                alreadyGone.add(ref.id());
+            }
+            // Recorded whether the platform deleted it now or it was already absent: either way this
+            // run no longer owns it.
+            journal.recordDeleted(kind, ref.key(), ref.id());
+        });
+
+        String label = kind.name().toLowerCase(Locale.ROOT);
+        report.fact("deleted." + label, refs.size() - failures.size() - alreadyGone.size());
+        if (!alreadyGone.isEmpty()) {
+            report.fact("alreadyGone." + label, alreadyGone.size());
+        }
+        recordFailures(failures, report, ref -> "delete " + label + " " + ref.name());
+    }
+
+    // ================================================================ helpers
+
+    private ManifestState state(CommandReport.Builder report) throws IOException {
+        ManifestState state = journal.state();
+        if (!state.unreadableLines().isEmpty()) {
+            report.warn("Manifest has unreadable entries (" + String.join(", ", state.unreadableLines())
+                    + "). Resources created around those lines may not be tracked, so check the "
+                    + "platform for leftovers before reusing this runId.");
+        }
+        return state;
+    }
+
+    private String ensureSingleton(Optional<ResourceRef> existing,
+                                   ResourceKind kind,
+                                   String key,
+                                   String name,
+                                   ThrowingSupplier create,
+                                   CommandReport.Builder report) {
+        if (existing.isPresent()) {
+            return existing.get().id();
+        }
+        try {
+            String id = create.get();
+            journal.recordCreated(kind, key, id, name);
+            return id;
+        } catch (RuntimeException e) {
+            report.fail("Could not create " + kind.name().toLowerCase(Locale.ROOT)
+                    + " " + name + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static int totalLive(ManifestState state) {
+        int total = 0;
+        for (ResourceKind kind : ResourceKind.values()) {
+            total += state.count(kind);
+        }
+        return total;
+    }
+
+    /**
+     * Runs one action per item across the bounded pool and returns the items that failed, mapped to
+     * their error. Failures are returned rather than thrown so a run that fails on 3 of 500 rules
+     * reports those 3 instead of discarding the 497 it already created and recorded.
+     */
+    private <T> Map<T, String> forEachConcurrently(Collection<T> items, ThrowingConsumer<T> action) {
+        if (items.isEmpty()) {
+            return Map.of();
+        }
+        Map<Future<?>, T> submitted = new LinkedHashMap<>();
+        for (T item : items) {
+            submitted.put(executor.submit(() -> {
+                action.accept(item);
+                return null;
+            }), item);
+        }
+
+        Map<T, String> failures = new LinkedHashMap<>();
+        submitted.forEach((future, item) -> {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                failures.put(item, "interrupted");
+            } catch (ExecutionException e) {
+                Throwable cause = (e.getCause() == null) ? e : e.getCause();
+                String message = (cause.getMessage() == null) ? cause.toString() : cause.getMessage();
+                failures.put(item, message);
+            }
+        });
+        return failures;
+    }
+
+    private static <T> void recordFailures(Map<T, String> failures,
+                                           CommandReport.Builder report,
+                                           Function<T, String> describe) {
+        failures.forEach((item, message) -> report.fail(describe.apply(item) + ": " + message));
+    }
+
+    private static void sleep(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        journal.close();
+    }
+
+    @FunctionalInterface
+    private interface ThrowingConsumer<T> {
+        void accept(T item);
+    }
+
+    @FunctionalInterface
+    private interface ThrowingSupplier {
+        String get();
+    }
+}
