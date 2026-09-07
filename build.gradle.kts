@@ -92,6 +92,33 @@ tasks.register<JavaExec>("cepbench") {
     args(
         providers.gradleProperty("command").getOrElse("plan"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.sandbox.example.json")
+            .getOrElse("src/main/resources/cepbench.local.json")
     )
 }
+
+tasks.register<JavaExec>("cepbench-provision") {
+    group = "application"
+    description = "Provision, activate, inspect and clean up a CEP benchmark environment"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.example.cepbench.CepBenchMain")
+    args(
+        providers.gradleProperty("command").getOrElse("provision"),
+        providers.gradleProperty("config")
+            .getOrElse("src/main/resources/cepbench.local.json")
+    )
+}
+
+
+tasks.register<JavaExec>("cepbench-attach") {
+    group = "application"
+    description = "Provision, activate, inspect and clean up a CEP benchmark environment"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.example.cepbench.CepBenchMain")
+    args(
+        providers.gradleProperty("command").getOrElse("provision"),
+        providers.gradleProperty("config")
+            .getOrElse("src/main/resources/cepbench.local.json")
+    )
+}
+
+

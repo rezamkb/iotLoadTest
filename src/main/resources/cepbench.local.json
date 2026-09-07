@@ -1,7 +1,7 @@
 {
   "platform": {
     "apiBaseUrl": "https://api.sandpod.ir/srv/iotsand",
-    "token": "PASTE_YOUR_SANDBOX_BEARER_TOKEN_HERE",
+    "token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIyMjQ1NzgyNyIsImlzcyI6Imh0dHBzOi8vd3d3LmZhbmFwaXVtLmNvbS8iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJpb3RiYW5rIiwiZXhwIjoxOTY4NzU0MjE0LCJnaXZlbl9uYW1lIjoiIiwiaWF0IjoxNjUzMzk0MjE0LCJmYW1pbHlfbmFtZSI6IiIsInBpY3R1cmUiOiIiLCJjbGllbnRfaWQiOiIyMjQ1NzgyN2Q1NThiNDNmOGFhMDZjM2UyYTRkNzYyMjIifQ.LiWClAQ1DQeNghZ4oVtN1f8d2oVor2qGps2gxhNAxhcb8GFoCZ73bn2x7JddMhqwiMDqy_VmpnGWf6fXniqZKut5-vZJxXGGwZIZ4WEcx_-R9Jx4oWKFcYlM2Dy6adHJQpqtgu6hg1EMJ8MfyZ37JKtWzoO8bFrXqGnmpmN0iC0",
     "connectTimeoutSeconds": 10,
     "requestTimeoutSeconds": 60,
     "activationTimeoutSeconds": 180,
@@ -12,7 +12,7 @@
     "runId": "smoke-001",
     "locationCode": "1000",
     "scenarios": {
-      "singleSelect": 2,
+      "singleSelect": 1,
       "multiSelectTwoDevice": 1,
       "windowing": 1
     },
@@ -26,10 +26,10 @@
   },
   "manifestDirectory": ".cepbench",
   "edge": {
-    "edgeId": "PASTE_YOUR_EDGE_ID",
-    "clientId": "PASTE_EDGE_CLIENT_ID",
-    "alternativeClientId": "PASTE_EDGE_ALTERNATIVE_CLIENT_ID",
-    "brokerUrl": "tcp://REPLACE-WITH-SANDBOX-BROKER:1883",
+    "edgeId": "ucl2aswl7j6",
+    "clientId": "GQVTOJ7DU6HLM66QLHJFD8Q",
+    "alternativeClientId": "RKO6U43QSUR5ABBU5BAV0SC",
+    "brokerUrl": "tcp://10.35.43.48:1883",
     "publishTopic": "dvcasy/edge/twin/report",
     "qos": 0,
     "maxInflight": 10000
