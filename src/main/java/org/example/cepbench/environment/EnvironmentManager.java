@@ -1,9 +1,13 @@
 package org.example.cepbench.environment;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.example.cepbench.client.PlatformApiClient;
 import org.example.cepbench.client.PlatformApiException;
 import org.example.cepbench.config.BenchmarkConfig;
+import org.example.cepbench.edge.EdgeMqttPublisher;
+import org.example.cepbench.workload.LoadRunner;
+import org.example.cepbench.workload.WorkloadTargets;
 import org.example.cepbench.manifest.ManifestJournal;
 import org.example.cepbench.manifest.ManifestState;
 import org.example.cepbench.manifest.ResourceKind;
@@ -32,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -341,6 +346,9 @@ public final class EnvironmentManager implements Closeable {
         ManifestState state = state(report);
 
         deleteAll(state, ResourceKind.RULE, report);
+        // Before the devices go, so the operator's edge is not left holding attachments to devices
+        // that no longer exist. The edge itself is never touched: the run does not own it.
+        detachRecorded(state, report);
         deleteAll(state, ResourceKind.DEVICE, report);
         deleteAll(state, ResourceKind.ALARM_TYPE, report);
         deleteAll(state, ResourceKind.DEVICE_TYPE, report);
@@ -350,6 +358,151 @@ public final class EnvironmentManager implements Closeable {
         report.fact("remaining", remaining);
         if (remaining == 0) {
             report.fact("outcome", "manifest is empty; keep the journal file as the audit record");
+        }
+        return report.build();
+    }
+
+    // ================================================================ edge attachment
+
+    /**
+     * Attaches every device the manifest owns to the configured edge.
+     *
+     * <p>The edge belongs to the operator, so this only ever adds and removes attachments. Each
+     * successful attach is journalled, which is what lets cleanup detach exactly what it attached and
+     * nothing else.
+     */
+    public CommandReport attachDevices() throws IOException {
+        BenchmarkConfig.EdgeTarget edge = config.requireEdge("attach");
+        CommandReport.Builder report = CommandReport.builder("attach", plan.runId());
+        ManifestState state = state(report);
+
+        report.fact("edgeId", edge.edgeId());
+        Collection<ResourceRef> devices = state.of(ResourceKind.DEVICE).values();
+        Set<String> alreadyRecorded = state.of(ResourceKind.EDGE_ATTACHMENT).keySet();
+
+        List<ResourceRef> pending = devices.stream()
+                .filter(device -> !alreadyRecorded.contains(device.key()))
+                .toList();
+        report.fact("devices", devices.size());
+        report.fact("alreadyAttached", devices.size() - pending.size());
+
+        Set<String> wereAlreadyAttached = ConcurrentHashMap.newKeySet();
+        Map<ResourceRef, String> failures = forEachConcurrently(pending, device -> {
+            if (!client.attachDeviceToEdge(edge.edgeId(), device.id())) {
+                wereAlreadyAttached.add(device.id());
+            }
+            // Journalled either way: the platform reports it attached, so this run is responsible
+            // for detaching it.
+            journal.recordCreated(ResourceKind.EDGE_ATTACHMENT, device.key(), device.id(), device.name());
+        });
+
+        report.fact("attached", pending.size() - failures.size());
+        if (!wereAlreadyAttached.isEmpty()) {
+            report.fact("attachedBefore", wereAlreadyAttached.size());
+        }
+        recordFailures(failures, report, device -> "attach device " + device.name());
+        return report.build();
+    }
+
+    /** Reverses {@link #attachDevices()} without deleting anything. */
+    public CommandReport detachDevices() throws IOException {
+        config.requireEdge("detach");
+        CommandReport.Builder report = CommandReport.builder("detach", plan.runId());
+        ManifestState state = state(report);
+        detachRecorded(state, report);
+        return report.build();
+    }
+
+    private void detachRecorded(ManifestState state, CommandReport.Builder report) {
+        Collection<ResourceRef> attachments = state.of(ResourceKind.EDGE_ATTACHMENT).values();
+        if (attachments.isEmpty()) {
+            return;
+        }
+        if (config.edge() == null) {
+            report.warn(attachments.size() + " device(s) are recorded as attached to an edge, but the "
+                    + "config has no \"edge\" section, so they cannot be detached. Add it and re-run.");
+            return;
+        }
+        String edgeId = config.edge().edgeId();
+
+        Set<String> notAttached = ConcurrentHashMap.newKeySet();
+        Map<ResourceRef, String> failures = forEachConcurrently(attachments, attachment -> {
+            if (!client.detachDeviceFromEdge(edgeId, attachment.id())) {
+                notAttached.add(attachment.id());
+            }
+            journal.recordDeleted(ResourceKind.EDGE_ATTACHMENT, attachment.key(), attachment.id());
+        });
+
+        report.fact("detached", attachments.size() - failures.size() - notAttached.size());
+        if (!notAttached.isEmpty()) {
+            report.fact("alreadyDetached", notAttached.size());
+        }
+        recordFailures(failures, report, attachment -> "detach device " + attachment.name());
+    }
+
+    // ================================================================ workload
+
+    /**
+     * Publishes device reports through the edge for the configured duration, with a sentinel rule
+     * proving the engine is still firing.
+     */
+    public CommandReport runWorkload(Consumer<String> progress) throws IOException {
+        BenchmarkConfig.EdgeTarget edge = config.requireEdge("run");
+        BenchmarkConfig.WorkloadSpec workload = config.requireWorkload("run");
+
+        CommandReport.Builder report = CommandReport.builder("run", plan.runId());
+        ManifestState state = state(report);
+
+        WorkloadTargets targets = WorkloadTargets.from(state, config.run().template());
+        if (targets.isEmpty()) {
+            report.fail("The manifest records no rule with its devices. Provision (and if this run "
+                    + "predates the device mapping, re-provision) before running a workload.");
+            return report.build();
+        }
+        if (state.of(ResourceKind.EDGE_ATTACHMENT).isEmpty()) {
+            report.warn("No device is recorded as attached to the edge. Events published for an "
+                    + "unattached device are dropped before they reach CEP; run attach first.");
+        }
+
+        report.fact("edgeId", edge.edgeId());
+        report.fact("broker", edge.brokerUrl());
+        report.fact("topic", edge.publishTopic());
+        report.fact("devicesDriven", targets.background().size());
+        report.fact("sentinelRule", targets.sentinel().map(WorkloadTargets.Target::ruleKey).orElse("<none>"));
+        report.fact("requestedEventsPerSecond", workload.eventsPerSecond());
+        report.fact("reportsPerPublish", workload.reportsPerPublish());
+        report.fact("matchingFraction", workload.matchingFraction());
+
+        try (EdgeMqttPublisher publisher = new EdgeMqttPublisher(edge)) {
+            publisher.connect();
+            LoadRunner.Result result =
+                    new LoadRunner(workload, targets, publisher, client, progress).run();
+
+            report.fact("elapsedSeconds", result.elapsed().toSeconds());
+            report.fact("eventsSent", result.eventsSent());
+            report.fact("achievedEventsPerSecond", result.achievedEventsPerSecond());
+            report.fact("publishFailures", result.publishFailures());
+            report.fact("sentinelsRun", result.sentinelResults().size());
+            report.fact("sentinelsFired", result.sentinelsFired());
+
+            int failureIndex = result.firstFiringFailureIndex();
+            if (failureIndex >= 0) {
+                long secondsIn = failureIndex * workload.sentinelInterval().toSeconds();
+                report.fact("firstFiringFailureAfterSeconds", secondsIn);
+                report.fail("The sentinel rule stopped firing about " + secondsIn + "s into the run "
+                        + "while publishing continued. This is the production symptom. Capture a "
+                        + "thread dump and GET /diagnostics/drools from the CEP node BEFORE "
+                        + "restarting it; a restart destroys the evidence.");
+            } else if (result.sentinelResults().isEmpty()) {
+                report.warn("No sentinel completed, so this run proves nothing about firing. Either "
+                        + "the run was shorter than sentinelIntervalSeconds, or no rule was usable.");
+            }
+            if (result.publishFailures() > 0) {
+                report.warn(result.publishFailures() + " publish(es) failed; the achieved rate is "
+                        + "below the requested one for MQTT reasons, not CEP ones.");
+            }
+        } catch (MqttException e) {
+            report.fail("MQTT failure against " + edge.brokerUrl() + ": " + e.getMessage());
         }
         return report.build();
     }

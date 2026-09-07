@@ -78,10 +78,19 @@ public final class ConfigLoader {
         BenchmarkConfig.RunSpec run = parseRun(runNode, problems);
         Path manifestDirectory = Path.of(text(root, "manifestDirectory", ".cepbench"));
 
+        // Both sections are optional so plan, provision, activate and cleanup keep working on a
+        // config that has not been extended for the workload yet. The commands that need them say so.
+        // Parsed before the problem check so a bad edge section is reported alongside a bad platform
+        // one rather than only after the first is fixed.
+        BenchmarkConfig.EdgeTarget edge =
+                root.has("edge") ? parseEdge(root.get("edge"), problems) : null;
+        BenchmarkConfig.WorkloadSpec workload =
+                root.has("workload") ? parseWorkload(root.get("workload"), problems) : null;
+
         if (!problems.isEmpty()) {
             throw new IllegalArgumentException(describe(problems));
         }
-        return new BenchmarkConfig(platform, run, manifestDirectory);
+        return new BenchmarkConfig(platform, run, manifestDirectory, edge, workload);
     }
 
     private BenchmarkConfig.PlatformTarget parsePlatform(JsonNode node, List<String> problems, boolean requireToken) {
@@ -198,6 +207,98 @@ public final class ConfigLoader {
 
         return new BenchmarkConfig.RunSpec(
                 runId, locationCode, scenarios, maxRulesPerDevice, alarmTypeCode, template);
+    }
+
+    /**
+     * The edge is the operator's, not the run's. Nothing here is created or deleted by the
+     * benchmark, so every field is a value that must already exist on the platform.
+     */
+    private BenchmarkConfig.EdgeTarget parseEdge(JsonNode node, List<String> problems) {
+        if (!node.isObject()) {
+            problems.add("\"edge\" must be an object");
+            return null;
+        }
+
+        String edgeId = requireText(node, "edge.edgeId", text(node, "edgeId", ""), problems);
+        String clientId = requireText(node, "edge.clientId", text(node, "clientId", ""), problems);
+        String brokerUrl = requireText(node, "edge.brokerUrl", text(node, "brokerUrl", ""), problems);
+        String publishTopic = requireText(node, "edge.publishTopic", text(node, "publishTopic", ""), problems);
+
+        // Only needed by a downlink subscriber, which the benchmark does not run today. Recorded so
+        // the value travels with the config rather than being rediscovered later.
+        String alternativeClientId = text(node, "alternativeClientId", "").trim();
+
+        if (!brokerUrl.isEmpty() && !brokerUrl.startsWith("tcp://") && !brokerUrl.startsWith("ssl://")) {
+            problems.add("edge.brokerUrl must start with tcp:// or ssl://");
+        }
+
+        int qos = nonNegative(node, "qos", 0, problems);
+        if (qos > 2) {
+            problems.add("edge.qos must be 0, 1 or 2");
+        }
+
+        return new BenchmarkConfig.EdgeTarget(
+                edgeId,
+                clientId,
+                alternativeClientId,
+                brokerUrl,
+                publishTopic,
+                resolveSecret(node, "username", "usernameEnvironmentVariable", problems),
+                resolveSecret(node, "password", "passwordEnvironmentVariable", problems),
+                qos,
+                positive(node, "maxInflight", 10_000, problems));
+    }
+
+    private BenchmarkConfig.WorkloadSpec parseWorkload(JsonNode node, List<String> problems) {
+        if (!node.isObject()) {
+            problems.add("\"workload\" must be an object");
+            return null;
+        }
+
+        double matchingFraction = node.path("matchingFraction").asDouble(0.0d);
+        if (matchingFraction < 0.0d || matchingFraction > 1.0d) {
+            problems.add("workload.matchingFraction must be between 0.0 and 1.0");
+        }
+
+        return new BenchmarkConfig.WorkloadSpec(
+                positive(node, "eventsPerSecond", 100, problems),
+                Duration.ofSeconds(positive(node, "durationSeconds", 600, problems)),
+                positive(node, "reportsPerPublish", 1, problems),
+                matchingFraction,
+                Duration.ofSeconds(positive(node, "sentinelIntervalSeconds", 30, problems)),
+                Duration.ofSeconds(positive(node, "sentinelTimeoutSeconds", 15, problems)),
+                Duration.ofSeconds(positive(node, "progressIntervalSeconds", 10, problems)),
+                node.path("stopOnSentinelFailure").asBoolean(true));
+    }
+
+    /**
+     * Reads a value either inline or from the environment, the same choice the API token offers.
+     * Absent means absent: an empty broker credential is normal, since the usual setup authenticates
+     * on the MQTT client id alone.
+     */
+    private String resolveSecret(JsonNode node, String inlineField, String variableField, List<String> problems) {
+        String inline = text(node, inlineField, "");
+        if (!inline.isEmpty()) {
+            return inline;
+        }
+        String variable = text(node, variableField, "").trim();
+        if (variable.isEmpty()) {
+            return "";
+        }
+        if (!ENV_VARIABLE_NAME.matcher(variable).matches()) {
+            problems.add("edge." + variableField + " must be the NAME of an environment variable");
+            return "";
+        }
+        String resolved = environment.apply(variable);
+        return (resolved == null) ? "" : resolved.trim();
+    }
+
+    private static String requireText(JsonNode node, String label, String value, List<String> problems) {
+        String trimmed = (value == null) ? "" : value.trim();
+        if (trimmed.isEmpty()) {
+            problems.add(label + " is required");
+        }
+        return trimmed;
     }
 
     private static JsonNode required(JsonNode parent, String field, List<String> problems) {

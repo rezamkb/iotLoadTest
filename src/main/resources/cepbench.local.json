@@ -24,5 +24,24 @@
       "windowLength": 3
     }
   },
-  "manifestDirectory": ".cepbench"
+  "manifestDirectory": ".cepbench",
+  "edge": {
+    "edgeId": "PASTE_YOUR_EDGE_ID",
+    "clientId": "PASTE_EDGE_CLIENT_ID",
+    "alternativeClientId": "PASTE_EDGE_ALTERNATIVE_CLIENT_ID",
+    "brokerUrl": "tcp://REPLACE-WITH-SANDBOX-BROKER:1883",
+    "publishTopic": "dvcasy/edge/twin/report",
+    "qos": 0,
+    "maxInflight": 10000
+  },
+  "workload": {
+    "eventsPerSecond": 50,
+    "durationSeconds": 300,
+    "reportsPerPublish": 1,
+    "matchingFraction": 0.0,
+    "sentinelIntervalSeconds": 30,
+    "sentinelTimeoutSeconds": 15,
+    "progressIntervalSeconds": 10,
+    "stopOnSentinelFailure": true
+  }
 }

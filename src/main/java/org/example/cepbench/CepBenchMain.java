@@ -38,7 +38,8 @@ public final class CepBenchMain {
     /** Commands that touch neither the platform nor the journal's write side. */
     private static final Set<String> OFFLINE = Set.of("plan", "export");
     private static final Set<String> COMMANDS =
-            Set.of("plan", "provision", "status", "activate", "deactivate", "cleanup", "export");
+            Set.of("plan", "provision", "status", "activate", "deactivate", "cleanup", "export",
+                    "attach", "detach", "run");
 
     public static void main(String[] args) throws Exception {
         System.exit(run(args, System.out, System.err));
@@ -79,10 +80,20 @@ public final class CepBenchMain {
                 case "activate" -> manager.activateAll();
                 case "deactivate" -> manager.deactivateAll();
                 case "cleanup" -> manager.cleanup();
+                case "attach" -> manager.attachDevices();
+                case "detach" -> manager.detachDevices();
+                // Progress goes straight to stdout as it happens: a run lasts minutes to hours, and
+                // a sentinel failure is worth seeing the moment it occurs rather than at the end.
+                case "run" -> manager.runWorkload(line -> out.println("  " + line));
                 default -> throw new IllegalStateException("Unhandled command " + command);
             };
             print(report, out);
             return report.ok() ? 0 : 1;
+        } catch (IllegalStateException missingSection) {
+            // Thrown by requireEdge/requireWorkload: a configuration gap, not a runtime failure, so
+            // it reads as a usage error rather than a stack trace.
+            err.println(missingSection.getMessage());
+            return 2;
         }
     }
 
@@ -190,7 +201,10 @@ public final class CepBenchMain {
                   status      report what the manifest owns and its activation state
                   activate    activate every rule and wait until the platform confirms it
                   deactivate  deactivate every rule and wait until the platform confirms it
-                  cleanup     delete everything the manifest records, in dependency order
+                  attach      attach every provisioned device to the configured edge
+                  detach      detach them again, leaving the edge itself untouched
+                  run         publish device reports through the edge and watch a sentinel rule
+                  cleanup     detach, then delete everything the manifest records
                   export      write <runId>-rules.csv and <runId>-devices.csv from the manifest
 
                 The API token comes from the config's "token" field, or from the environment

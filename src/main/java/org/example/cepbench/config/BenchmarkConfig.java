@@ -13,8 +13,28 @@ import java.time.Duration;
 public record BenchmarkConfig(
         PlatformTarget platform,
         RunSpec run,
-        Path manifestDirectory
+        Path manifestDirectory,
+        /** Null until an "edge" section is configured; required by attach, detach and run. */
+        EdgeTarget edge,
+        /** Null until a "workload" section is configured; required by run. */
+        WorkloadSpec workload
 ) {
+
+    public EdgeTarget requireEdge(String command) {
+        if (edge == null) {
+            throw new IllegalStateException(
+                    command + " needs an \"edge\" section in the config: edgeId, clientId, "
+                            + "alternativeClientId, brokerUrl and publishTopic");
+        }
+        return edge;
+    }
+
+    public WorkloadSpec requireWorkload(String command) {
+        if (workload == null) {
+            throw new IllegalStateException(command + " needs a \"workload\" section in the config");
+        }
+        return workload;
+    }
 
     public record PlatformTarget(
             String apiBaseUrl,
@@ -63,5 +83,52 @@ public record BenchmarkConfig(
     }
 
     public record RuleTemplateSpec(int temperatureThreshold, int windowAverageThreshold, int windowLength) {
+    }
+
+    /**
+     * An edge that already exists and belongs to the operator, not to the run.
+     *
+     * <p>The benchmark attaches its devices to it and detaches them again, and never creates or
+     * deletes the edge itself. {@code clientId} is the uplink identity used as the MQTT client
+     * identifier when publishing; {@code alternativeClientId} is the downlink identity a subscriber
+     * would use for {@code dvcout/<edgeId>/<clientId>/edge/twin/#}. They are not interchangeable.
+     */
+    public record EdgeTarget(
+            String edgeId,
+            String clientId,
+            String alternativeClientId,
+            String brokerUrl,
+            /** Uplink topic, e.g. {@code dvcasy/edge/twin/report}. Environment specific. */
+            String publishTopic,
+            /** Empty when the broker authenticates on client id alone, which is the usual case. */
+            String username,
+            String password,
+            int qos,
+            int maxInflight
+    ) {
+    }
+
+    public record WorkloadSpec(
+            /** Device reports per second across all devices, not MQTT publishes per second. */
+            int eventsPerSecond,
+            Duration duration,
+            /**
+             * Device reports packed into one publish via the array form of {@code deviceReport}.
+             * At 1, one publish carries one event and MQTT throughput equals event throughput.
+             */
+            int reportsPerPublish,
+            /**
+             * Fraction of generated events that satisfy their rule's condition, 0.0 to 1.0.
+             *
+             * <p>Zero is the interesting default: non-matching facts are never retracted from a
+             * stateless entry point, so pure non-matching traffic is what grows working memory.
+             */
+            double matchingFraction,
+            Duration sentinelInterval,
+            Duration sentinelTimeout,
+            Duration progressInterval,
+            /** Stop the run as soon as a sentinel fails, so the failure state is preserved. */
+            boolean stopOnSentinelFailure
+    ) {
     }
 }

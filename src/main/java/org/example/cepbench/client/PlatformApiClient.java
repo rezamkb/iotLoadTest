@@ -127,6 +127,71 @@ public final class PlatformApiClient {
         send("DELETE", "/rules/" + encode(ruleId) + "/activated", null, true);
     }
 
+    // ---------------------------------------------------------------- alarms
+
+    /**
+     * Total alarms the platform has recorded for one rule.
+     *
+     * <p>This is the sentinel's only source of truth. It is what separates "the producer is still
+     * publishing" from "Drools is still evaluating and firing": if this stops advancing while events
+     * keep being accepted, the engine has stopped, which is the production symptom.
+     *
+     * <p>Reads {@code totalElements} from the paged response rather than counting the returned page,
+     * so it stays correct once the count exceeds one page.
+     */
+    public long countAlarmsForRule(String ruleId) {
+        JsonNode page = send("GET", "/alarms?ruleId=" + encode(ruleId) + "&size=1", null, true);
+        JsonNode total = page.path("totalElements");
+        if (total.isNumber()) {
+            return total.asLong();
+        }
+        // Older or differently shaped responses: fall back to the page itself rather than failing
+        // the probe, and let the caller see a plateau rather than an exception.
+        JsonNode content = page.path("content");
+        return content.isArray() ? content.size() : 0L;
+    }
+
+    // ---------------------------------------------------------------- edge attachment
+
+    /**
+     * Attaches a device to an edge the operator owns.
+     *
+     * <p>Idempotent from the benchmark's point of view: a device the platform already reports as
+     * attached is treated as success, so a resumed attach converges instead of failing.
+     *
+     * @return true if this call performed the attachment, false if it was already attached
+     */
+    public boolean attachDeviceToEdge(String edgeId, String deviceId) {
+        try {
+            send("POST", edgeDevicePath(edgeId, deviceId), null, false);
+            return true;
+        } catch (PlatformApiException e) {
+            if (e.isConflict()) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * @return true if this call performed the detachment, false if it was not attached
+     */
+    public boolean detachDeviceFromEdge(String edgeId, String deviceId) {
+        try {
+            send("DELETE", edgeDevicePath(edgeId, deviceId), null, true);
+            return true;
+        } catch (PlatformApiException e) {
+            if (e.isNotFound()) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private static String edgeDevicePath(String edgeId, String deviceId) {
+        return "/edges/" + encode(edgeId) + "/devices/" + encode(deviceId);
+    }
+
     // ---------------------------------------------------------------- deletion
 
     /**
