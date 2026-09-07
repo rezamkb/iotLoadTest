@@ -1,7 +1,8 @@
 # cepbench — Phase 1: environment control plane
 
 Creates, activates and removes the platform resources one CEP benchmark run needs, against the
-sandbox REST API. No event generation yet; that is Phase 2.
+sandbox REST API. Event generation is [Phase 2](cepbench-phase2.md), which adds the `attach`,
+`detach` and `run` commands on top of everything here.
 
 ## Commands
 
@@ -136,6 +137,8 @@ Never vary it in the same comparison as rule count or event rate.
 
 ## Next
 
-Phase 2 is the event generator: a direct JMS publisher onto `iot/cep/in/device/reported_0` with the
-`ReportedFact` payload shape, plus the sentinel that distinguishes "the producer is still sending"
-from "Drools is still firing".
+Phase 2 is the event generator and the sentinel: see [cepbench-phase2.md](cepbench-phase2.md).
+
+It publishes through an MQTT edge rather than straight onto the CEP input queue, as an earlier draft
+of this document proposed. Direct JMS isolates Drools more cleanly but skips device-hub and twin, so
+it measures a path production never takes.
