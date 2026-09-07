@@ -75,6 +75,15 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void offlineCommandsLoadWithoutATokenSoPlanAndExportWorkWithoutCredentials() {
+        BenchmarkConfig config = loaderWith(Map.of()).parse(json(VALID), false);
+
+        assertEquals("", config.platform().token());
+        // Everything else must still be parsed and validated; only the token value is optional.
+        assertEquals("drools-001", config.run().runId());
+    }
+
+    @Test
     void aTokenThatAlreadyCarriesTheBearerPrefixIsRejected() {
         // Pasting the whole Authorization header value is an easy mistake and produces a confusing
         // 401 much later, once resources have already been created.

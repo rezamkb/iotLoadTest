@@ -12,11 +12,15 @@ sandbox REST API. No event generation yet; that is Phase 2.
 ./gradlew.bat cepbench -Pcommand=activate   -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ./gradlew.bat cepbench -Pcommand=deactivate -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ./gradlew.bat cepbench -Pcommand=cleanup    -Pconfig=src/main/resources/cepbench.sandbox.example.json
+./gradlew.bat cepbench -Pcommand=export     -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ```
 
 `plan` makes no network calls. Run it first: it prints the device count, the rule mix and one
 rendered example of each rule shape, which is the last cheap chance to notice that the config is not
 what you meant.
+
+`export` makes no network calls either, and neither needs the API token to be set. Both still
+validate the rest of the config.
 
 ## Secrets and the confirmation guard
 
@@ -60,6 +64,36 @@ changes.
 
 `provision` is resumable. The plan is deterministic, so a run interrupted half way through creates
 only what the journal does not already record.
+
+A rule's record also carries the devices it selects on:
+
+```json
+{"op":"CREATED","kind":"RULE","key":"r-multi-0001","id":"ypmbccdeeqr","name":"cepbench-demo-001-r-multi-0001","scenario":"MULTI_SELECT_TWO_DEVICE","deviceIds":["faoksqg88ao","2dsdyq5p8p6"],"at":"..."}
+```
+
+That mapping is written at creation time rather than recomputed, and the distinction matters. A
+rule's `when` clause is fixed on the platform the moment it is created, but the planner reallocates
+devices to rules whenever `maxRulesPerDevice` or the scenario counts change — exactly the knobs the
+capacity and retention phases vary. Recomputing the mapping after such an edit would report a
+confident but wrong answer with no error. Journals written before this field existed report no
+mapping rather than guessing one.
+
+## CSV export
+
+`export` folds the journal and writes two files next to it:
+
+- `<runId>-rules.csv` — `ruleKey, ruleId, ruleName, scenario, stateful, deviceCount, deviceIds, when`
+- `<runId>-devices.csv` — `deviceKey, deviceId, deviceName, ruleCount, ruleKeys, ruleIds`
+
+Multi-valued columns are `;`-separated so they need no quoting gymnastics. The `when` column is
+re-rendered from the recorded scenario and device ids, so it shows what the platform was actually
+asked to compile.
+
+Activation state is deliberately **not** in the CSV. It is live platform state that changes without
+the journal knowing; `status` reports it. A stale copy in a file invites someone to trust it.
+
+The export is the join Phase 2 needs: the generator has to know which device feeds which rule to
+build a payload that matches, and the sentinel has to pick a rule and address its device.
 
 ## maxRulesPerDevice
 

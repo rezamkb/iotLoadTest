@@ -180,7 +180,11 @@ public final class EnvironmentManager implements Closeable {
             }
             String when = templates.renderWhen(rule.scenario(), deviceIds, config.run().template());
             PlatformApiClient.RuleView created = client.createRule(rule.name(), when, then, tags);
-            journal.recordCreated(ResourceKind.RULE, rule.key(), created.id(), rule.name());
+            // Records the devices alongside the rule, because this is the last moment the mapping is
+            // certain: the clause above is now fixed on the platform, while the planner's allocation
+            // would shift under any later config edit.
+            journal.recordRuleCreated(
+                    rule.key(), created.id(), rule.name(), rule.scenario().name(), deviceIds);
             if (created.activated()) {
                 report.warn("Rule " + rule.name() + " came back already activated; "
                         + "provision expects rules to start inactive");

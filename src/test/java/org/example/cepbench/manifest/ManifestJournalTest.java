@@ -8,9 +8,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -102,5 +104,44 @@ class ManifestJournalTest {
 
             assertEquals("new", journal.state().find(ResourceKind.DEVICE, "d0001").orElseThrow().id());
         }
+    }
+
+    @Test
+    void ruleRecordsCarryTheirScenarioAndDevicesAcrossAReopen(@TempDir Path dir) throws IOException {
+        try (ManifestJournal journal = ManifestJournal.open(dir, "run-g", API)) {
+            journal.recordRuleCreated("r-multi-0001", "rule1", "rule-one",
+                    "MULTI_SELECT_TWO_DEVICE", List.of("devA", "devB"));
+        }
+
+        ResourceRef rule = ManifestJournal.readState(dir, "run-g")
+                .find(ResourceKind.RULE, "r-multi-0001").orElseThrow();
+
+        assertEquals("MULTI_SELECT_TWO_DEVICE", rule.scenario());
+        // Order matters: it is the order the ids appear in the rendered when clause.
+        assertEquals(List.of("devA", "devB"), rule.deviceIds());
+        assertTrue(rule.hasRuleDetail());
+    }
+
+    @Test
+    void aRuleWrittenWithoutTheMappingReportsNoneRatherThanGuessing(@TempDir Path dir) throws IOException {
+        try (ManifestJournal journal = ManifestJournal.open(dir, "run-h", API)) {
+            journal.recordCreated(ResourceKind.RULE, "r-single-0001", "rule1", "rule-one");
+        }
+
+        ResourceRef rule = ManifestJournal.readState(dir, "run-h")
+                .find(ResourceKind.RULE, "r-single-0001").orElseThrow();
+
+        assertNull(rule.scenario());
+        assertEquals(List.of(), rule.deviceIds());
+        assertFalse(rule.hasRuleDetail());
+    }
+
+    @Test
+    void readStateOnAnAbsentJournalIsEmptyAndCreatesNothing(@TempDir Path dir) throws IOException {
+        ManifestState state = ManifestJournal.readState(dir, "never-provisioned");
+
+        assertTrue(state.isEmpty());
+        // The export path must never bring a journal into existence just by looking at it.
+        assertFalse(Files.exists(dir.resolve("never-provisioned.jsonl")));
     }
 }

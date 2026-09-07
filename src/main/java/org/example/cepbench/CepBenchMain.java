@@ -4,11 +4,16 @@ import org.example.cepbench.config.BenchmarkConfig;
 import org.example.cepbench.config.ConfigLoader;
 import org.example.cepbench.environment.CommandReport;
 import org.example.cepbench.environment.EnvironmentManager;
+import org.example.cepbench.export.ManifestCsvExporter;
+import org.example.cepbench.manifest.ManifestJournal;
+import org.example.cepbench.manifest.ManifestState;
+import org.example.cepbench.manifest.ResourceKind;
 import org.example.cepbench.model.EnvironmentPlan;
 import org.example.cepbench.model.RuleScenario;
 import org.example.cepbench.planning.EnvironmentPlanner;
 import org.example.cepbench.template.RuleTemplates;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
@@ -26,14 +31,17 @@ import java.util.Set;
  * <p>Commands that change anything on the platform require {@code CEPBENCH_CONFIRM} to be set to
  * {@code &lt;runId&gt;@&lt;api host&gt;}. Provisioning creates hundreds of resources on a shared
  * sandbox and cleanup deletes them, so the operator is made to name both the run and the target
- * host. {@code plan} and {@code status} read only and need no confirmation.
+ * host. {@code plan}, {@code status} and {@code export} read only and need no confirmation;
+ * {@code plan} and {@code export} additionally make no network call, so they work without a token.
  */
 public final class CepBenchMain {
 
     private static final String CONFIRM_VARIABLE = "CEPBENCH_CONFIRM";
-    private static final Set<String> READ_ONLY = Set.of("plan", "status");
+    private static final Set<String> READ_ONLY = Set.of("plan", "status", "export");
+    /** Commands that touch neither the platform nor the journal's write side. */
+    private static final Set<String> OFFLINE = Set.of("plan", "export");
     private static final Set<String> COMMANDS =
-            Set.of("plan", "provision", "status", "activate", "deactivate", "cleanup");
+            Set.of("plan", "provision", "status", "activate", "deactivate", "cleanup", "export");
 
     public static void main(String[] args) throws Exception {
         System.exit(run(args, System.out, System.err));
@@ -52,7 +60,7 @@ public final class CepBenchMain {
 
         BenchmarkConfig config;
         try {
-            config = new ConfigLoader().load(Path.of(args[1]));
+            config = new ConfigLoader().load(Path.of(args[1]), !OFFLINE.contains(command));
         } catch (IllegalArgumentException e) {
             err.println(e.getMessage());
             return 2;
@@ -69,6 +77,10 @@ public final class CepBenchMain {
         if (command.equals("plan")) {
             printPlan(config, out);
             return 0;
+        }
+
+        if (command.equals("export")) {
+            return exportCsv(config, out, err);
         }
 
         try (EnvironmentManager manager = EnvironmentManager.open(config)) {
@@ -160,6 +172,43 @@ public final class CepBenchMain {
         return label.length() >= 25 ? label + " " : "%-25s".formatted(label);
     }
 
+    /**
+     * Folds the journal and writes the two CSVs. Makes no network call, so it still answers after
+     * cleanup has removed everything from the platform.
+     */
+    private static int exportCsv(BenchmarkConfig config, PrintStream out, PrintStream err) throws IOException {
+        ManifestState state = ManifestJournal.readState(config.manifestDirectory(), config.run().runId());
+
+        if (state.isEmpty()) {
+            err.println("Manifest for run " + config.run().runId() + " records no resources; nothing to export.");
+            return 1;
+        }
+
+        List<Path> written = new ManifestCsvExporter()
+                .export(state, config, config.manifestDirectory());
+
+        long rulesWithoutMapping = state.of(ResourceKind.RULE).values().stream()
+                .filter(rule -> !rule.hasRuleDetail())
+                .count();
+
+        out.println("export");
+        out.println("  " + pad("rules") + state.count(ResourceKind.RULE));
+        out.println("  " + pad("devices") + state.count(ResourceKind.DEVICE));
+        for (Path path : written) {
+            out.println("  " + pad("wrote") + path);
+        }
+        if (rulesWithoutMapping > 0) {
+            // Journals written before rules recorded their devices. Saying so beats emitting blank
+            // columns and letting someone conclude the rules have no devices.
+            err.println("  warning: " + rulesWithoutMapping + " rule(s) predate the device mapping; "
+                    + "their deviceIds and when columns are blank. Re-provision to record them.");
+        }
+        if (!state.unreadableLines().isEmpty()) {
+            err.println("  warning: unreadable journal lines: " + String.join(", ", state.unreadableLines()));
+        }
+        return 0;
+    }
+
     private static String usage() {
         return """
                 usage: cepbench <command> <config.json>
@@ -170,9 +219,11 @@ public final class CepBenchMain {
                   activate    activate every rule and wait until the platform confirms it
                   deactivate  deactivate every rule and wait until the platform confirms it
                   cleanup     delete everything the manifest records, in dependency order
+                  export      write <runId>-rules.csv and <runId>-devices.csv from the manifest
 
                 Mutating commands require CEPBENCH_CONFIRM=<runId>@<api host>.
-                The API token is read from the environment variable named in the config.
+                The API token is read from the environment variable named in the config;
+                plan and export make no network calls and do not need it to be set.
                 """;
     }
 

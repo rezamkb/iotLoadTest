@@ -2,6 +2,7 @@ package org.example.cepbench.manifest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.Closeable;
@@ -89,14 +90,42 @@ public final class ManifestJournal implements Closeable {
 
     /** Records a successful create. Returns only after the line is on disk. */
     public synchronized void recordCreated(ResourceKind kind, String key, String id, String name) {
+        ObjectNode node = createdNode(kind, key, id, name);
+        node.put("at", Instant.now().toString());
+        append(node);
+    }
+
+    /**
+     * Records a created rule together with the devices it selects on.
+     *
+     * <p>The mapping is written here, at the only moment it is known to be true, because the rule's
+     * {@code when} clause is now fixed on the platform while the planner's allocation is not: it
+     * shifts whenever {@code maxRulesPerDevice} or the scenario counts change. Everything downstream
+     * reads the mapping from the journal rather than recomputing it.
+     */
+    public synchronized void recordRuleCreated(String key,
+                                               String id,
+                                               String name,
+                                               String scenario,
+                                               List<String> deviceIds) {
+        ObjectNode node = createdNode(ResourceKind.RULE, key, id, name);
+        node.put("scenario", scenario);
+        ArrayNode devices = node.putArray("deviceIds");
+        for (String deviceId : deviceIds) {
+            devices.add(deviceId);
+        }
+        node.put("at", Instant.now().toString());
+        append(node);
+    }
+
+    private ObjectNode createdNode(ResourceKind kind, String key, String id, String name) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("op", OP_CREATED);
         node.put("kind", kind.name());
         node.put("key", key);
         node.put("id", id);
         node.put("name", name);
-        node.put("at", Instant.now().toString());
-        append(node);
+        return node;
     }
 
     /** Records a successful delete. Only ever appended after the platform confirmed it. */
@@ -110,8 +139,21 @@ public final class ManifestJournal implements Closeable {
         append(node);
     }
 
+    /**
+     * Folds an existing journal without opening it for append, for read-only callers such as the
+     * CSV export. Returns empty state when the run has no journal yet, and never creates a file.
+     */
+    public static ManifestState readState(Path directory, String runId) throws IOException {
+        return fold(directory.resolve(runId + ".jsonl"));
+    }
+
     /** Folds the journal into the set of resources that currently exist. */
     public ManifestState state() throws IOException {
+        return fold(file);
+    }
+
+    private static ManifestState fold(Path file) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
         Map<ResourceKind, Map<String, ResourceRef>> live = new LinkedHashMap<>();
         for (ResourceKind kind : ResourceKind.values()) {
             live.put(kind, new LinkedHashMap<>());
@@ -147,7 +189,14 @@ public final class ManifestJournal implements Closeable {
             String key = node.path("key").asText("");
             switch (op) {
                 case OP_CREATED -> live.get(kind).put(key, new ResourceRef(
-                        kind, key, node.path("id").asText(""), node.path("name").asText("")));
+                        kind,
+                        key,
+                        node.path("id").asText(""),
+                        node.path("name").asText(""),
+                        // Absent in journals written before rules recorded their devices. Such a ref
+                        // simply reports no mapping rather than inventing one.
+                        node.path("scenario").asText(null),
+                        deviceIds(node.path("deviceIds"))));
                 case OP_DELETED -> live.get(kind).remove(key);
                 default -> unreadable.add("line " + lineNumber + " (unknown op)");
             }
@@ -191,6 +240,17 @@ public final class ManifestJournal implements Closeable {
             }
         }
         return null;
+    }
+
+    private static List<String> deviceIds(JsonNode node) {
+        if (!node.isArray()) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>(node.size());
+        for (JsonNode element : node) {
+            ids.add(element.asText(""));
+        }
+        return ids;
     }
 
     private static ResourceKind parseKind(String raw) {

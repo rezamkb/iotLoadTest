@@ -40,14 +40,27 @@ public final class ConfigLoader {
     }
 
     public BenchmarkConfig load(Path configFile) throws IOException {
+        return load(configFile, true);
+    }
+
+    /**
+     * @param requireToken false for commands that make no network call, so {@code plan} and
+     *                     {@code export} still work on a machine that has no credentials. The
+     *                     config must still name a token variable; only its value is optional.
+     */
+    public BenchmarkConfig load(Path configFile, boolean requireToken) throws IOException {
         if (!Files.isRegularFile(configFile)) {
             throw new IllegalArgumentException("Config file not found: " + configFile.toAbsolutePath());
         }
         JsonNode root = objectMapper.readTree(Files.readString(configFile));
-        return parse(root);
+        return parse(root, requireToken);
     }
 
     public BenchmarkConfig parse(JsonNode root) {
+        return parse(root, true);
+    }
+
+    public BenchmarkConfig parse(JsonNode root, boolean requireToken) {
         List<String> problems = new ArrayList<>();
 
         JsonNode platformNode = required(root, "platform", problems);
@@ -56,7 +69,7 @@ public final class ConfigLoader {
             throw new IllegalArgumentException(describe(problems));
         }
 
-        BenchmarkConfig.PlatformTarget platform = parsePlatform(platformNode, problems);
+        BenchmarkConfig.PlatformTarget platform = parsePlatform(platformNode, problems, requireToken);
         BenchmarkConfig.RunSpec run = parseRun(runNode, problems);
         Path manifestDirectory = Path.of(text(root, "manifestDirectory", ".cepbench"));
 
@@ -66,7 +79,7 @@ public final class ConfigLoader {
         return new BenchmarkConfig(platform, run, manifestDirectory);
     }
 
-    private BenchmarkConfig.PlatformTarget parsePlatform(JsonNode node, List<String> problems) {
+    private BenchmarkConfig.PlatformTarget parsePlatform(JsonNode node, List<String> problems, boolean requireToken) {
         String apiBaseUrl = text(node, "apiBaseUrl", "").trim();
         if (apiBaseUrl.isEmpty()) {
             problems.add("platform.apiBaseUrl is required");
@@ -93,7 +106,11 @@ public final class ConfigLoader {
         } else {
             String resolved = environment.apply(tokenVariable);
             if (resolved == null || resolved.isBlank()) {
-                problems.add("environment variable " + tokenVariable + " is not set; it must hold the bearer token without the \"Bearer \" prefix");
+                // Offline commands leave the token empty rather than failing, so the plan and the
+                // CSV export remain usable without credentials.
+                if (requireToken) {
+                    problems.add("environment variable " + tokenVariable + " is not set; it must hold the bearer token without the \"Bearer \" prefix");
+                }
             } else {
                 token = resolved.trim();
                 if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
