@@ -24,9 +24,9 @@ import java.util.Set;
 /**
  * Writes the run's rules and devices as two CSV files.
  *
- * <p>Entirely offline: it folds the journal and nothing else. No API token, no network call, no
- * confirmation. That means it still works after the sandbox environment has been cleaned up, or on a
- * machine that never had credentials, which is the point of keeping the journal in the first place.
+ * <p>Entirely offline: it folds the journal and nothing else. No API token and no network call, so
+ * it still works after the sandbox environment has been cleaned up, or on a machine that never had
+ * credentials, which is the point of keeping the journal in the first place.
  *
  * <p>Activation state is deliberately absent. It is live platform state that changes without the
  * journal knowing, so reporting it belongs to {@code status}; baking a stale copy into a CSV would

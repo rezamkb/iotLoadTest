@@ -22,16 +22,11 @@ what you meant.
 `export` makes no network calls either, and neither needs the API token to be set. Both still
 validate the rest of the config.
 
-## Secrets and the confirmation guard
+## Secrets
 
-```powershell
-$env:CEPBENCH_API_TOKEN = '<sandbox bearer token, without the "Bearer " prefix>'
-$env:CEPBENCH_CONFIRM   = 'drools-baseline-001@api.sandpod.ir'
-```
-
-Every command except `plan`, `status` and `export` additionally requires `CEPBENCH_CONFIRM` to equal
-`<runId>@<api host>` exactly. Provisioning creates hundreds of resources on a shared sandbox and
-cleanup deletes them, so the operator has to name both the run and the target host.
+There is no arming or confirmation step. `provision`, `activate`, `deactivate` and `cleanup` act on
+whatever `apiBaseUrl` points at, as soon as they are run. `plan` prints the target and the resource
+counts without touching anything, so run it after any config edit and before any of those four.
 
 ### Where the token lives
 

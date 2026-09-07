@@ -4,11 +4,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 /**
- * The whole configuration for one benchmark run, already validated and with secrets resolved from
- * the environment.
+ * The whole configuration for one benchmark run, already validated.
  *
- * <p>No credential is ever stored in the JSON file. The file names an environment variable and
- * {@link ConfigLoader} reads it, so a config can be committed and shared safely.
+ * <p>A config that names {@code tokenEnvironmentVariable} carries no credential and is safe to
+ * commit. A config that uses the inline {@code token} field is not, which is why {@code *.local.json}
+ * is excluded by {@code .gitignore}.
  */
 public record BenchmarkConfig(
         PlatformTarget platform,
@@ -27,10 +27,7 @@ public record BenchmarkConfig(
             /** Parallel in-flight API calls during provision, activate and cleanup. */
             int concurrency
     ) {
-        /**
-         * Host of the API, used by the confirmation guard so an operator cannot arm a run for one
-         * environment and fire it at another.
-         */
+        /** Host of the API, for reporting which environment a command is about to act on. */
         public String authority() {
             return java.net.URI.create(apiBaseUrl).getAuthority();
         }

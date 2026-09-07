@@ -81,7 +81,8 @@ tasks.test {
 //   ./gradlew.bat cepbench -Pcommand=plan
 //   ./gradlew.bat cepbench -Pcommand=provision -Pconfig=path/to/config.json
 //
-// Mutating commands additionally require CEPBENCH_CONFIRM=<runId>@<api host>.
+// provision, activate, deactivate and cleanup change the environment the config
+// points at. Run plan first to see the target and the resource counts.
 // ---------------------------------------------------------------------------
 tasks.register<JavaExec>("cepbench") {
     group = "application"

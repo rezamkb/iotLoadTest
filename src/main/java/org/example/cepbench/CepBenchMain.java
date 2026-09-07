@@ -28,16 +28,13 @@ import java.util.Set;
  *   cepbench &lt;command&gt; &lt;config.json&gt;
  * </pre>
  *
- * <p>Commands that change anything on the platform require {@code CEPBENCH_CONFIRM} to be set to
- * {@code &lt;runId&gt;@&lt;api host&gt;}. Provisioning creates hundreds of resources on a shared
- * sandbox and cleanup deletes them, so the operator is made to name both the run and the target
- * host. {@code plan}, {@code status} and {@code export} read only and need no confirmation;
- * {@code plan} and {@code export} additionally make no network call, so they work without a token.
+ * <p>{@code plan} and {@code export} make no network call and work without a token; every other
+ * command talks to the platform, and {@code provision}, {@code activate}, {@code deactivate} and
+ * {@code cleanup} change it. There is no arming step: whatever the config points at is what gets
+ * modified, so run {@code plan} first to see the target and the resource counts.
  */
 public final class CepBenchMain {
 
-    private static final String CONFIRM_VARIABLE = "CEPBENCH_CONFIRM";
-    private static final Set<String> READ_ONLY = Set.of("plan", "status", "export");
     /** Commands that touch neither the platform nor the journal's write side. */
     private static final Set<String> OFFLINE = Set.of("plan", "export");
     private static final Set<String> COMMANDS =
@@ -64,14 +61,6 @@ public final class CepBenchMain {
         } catch (IllegalArgumentException e) {
             err.println(e.getMessage());
             return 2;
-        }
-
-        if (!READ_ONLY.contains(command)) {
-            String problem = confirmationProblem(config);
-            if (problem != null) {
-                err.println(problem);
-                return 3;
-            }
         }
 
         if (command.equals("plan")) {
@@ -130,23 +119,6 @@ public final class CepBenchMain {
                     + templates.renderWhen(scenario, placeholders, config.run().template()));
         }
         out.println("  then: " + templates.renderThen("alarmTypeXYZ"));
-    }
-
-    private static String confirmationProblem(BenchmarkConfig config) {
-        String expected = config.run().runId() + "@" + config.platform().authority();
-        String actual = System.getenv(CONFIRM_VARIABLE);
-        if (actual != null && actual.trim().equals(expected)) {
-            return null;
-        }
-        return """
-                Refusing to run: this command changes resources on %s.
-                Set %s to exactly:
-
-                    %s
-
-                PowerShell:  $env:%s = '%s'
-                """.formatted(config.platform().apiBaseUrl(), CONFIRM_VARIABLE, expected,
-                CONFIRM_VARIABLE, expected);
     }
 
     private static void print(CommandReport report, PrintStream out) {
@@ -221,9 +193,9 @@ public final class CepBenchMain {
                   cleanup     delete everything the manifest records, in dependency order
                   export      write <runId>-rules.csv and <runId>-devices.csv from the manifest
 
-                Mutating commands require CEPBENCH_CONFIRM=<runId>@<api host>.
-                The API token is read from the environment variable named in the config;
-                plan and export make no network calls and do not need it to be set.
+                The API token comes from the config's "token" field, or from the environment
+                variable named in "tokenEnvironmentVariable". plan and export make no network
+                calls and need neither.
                 """;
     }
 
