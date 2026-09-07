@@ -1,0 +1,28 @@
+{
+  "platform": {
+    "apiBaseUrl": "https://api.sandpod.ir/srv/iotsand",
+    "token": "PASTE_YOUR_SANDBOX_BEARER_TOKEN_HERE",
+    "connectTimeoutSeconds": 10,
+    "requestTimeoutSeconds": 60,
+    "activationTimeoutSeconds": 180,
+    "activationPollIntervalMillis": 1000,
+    "concurrency": 4
+  },
+  "run": {
+    "runId": "smoke-001",
+    "locationCode": "1000",
+    "scenarios": {
+      "singleSelect": 2,
+      "multiSelectTwoDevice": 1,
+      "windowing": 1
+    },
+    "maxRulesPerDevice": 1,
+    "alarmTypeCode": "9001",
+    "template": {
+      "temperatureThreshold": 40,
+      "windowAverageThreshold": 100,
+      "windowLength": 3
+    }
+  },
+  "manifestDirectory": ".cepbench"
+}
