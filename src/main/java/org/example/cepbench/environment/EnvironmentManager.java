@@ -16,6 +16,7 @@ import org.example.cepbench.model.EnvironmentPlan;
 import org.example.cepbench.model.RuleScenario;
 import org.example.cepbench.planning.EnvironmentPlanner;
 import org.example.cepbench.template.RuleTemplates;
+import org.example.cepbench.template.WhenClauseDevices;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -360,6 +361,120 @@ public final class EnvironmentManager implements Closeable {
             report.fact("outcome", "manifest is empty; keep the journal file as the audit record");
         }
         return report.build();
+    }
+
+    // ================================================================ reconcile
+
+    /**
+     * Adopts resources this run created on the platform but never recorded.
+     *
+     * <p>The gap is real and not rare: a POST that times out may already have committed on the
+     * server, and the client deliberately does not retry creates, so the resource exists with no
+     * journal entry. It is then invisible to cleanup and causes a 409 on the next provision.
+     *
+     * <p>Adoption is deliberately narrow. A platform resource is claimed only when its name is
+     * <em>exactly</em> one this run's plan produces, which means it carries the
+     * {@code cepbench-<runId>-} prefix and a plan key this run owns. Anything else that happens to
+     * share the location tag is left alone. This is the one place the "never adopt by name" rule is
+     * relaxed, and the exact-name match is what keeps it safe.
+     */
+    public CommandReport reconcile() throws IOException {
+        CommandReport.Builder report = CommandReport.builder("reconcile", plan.runId());
+        ManifestState state = state(report);
+        String tagFilter = "code:" + config.run().locationCode();
+        report.fact("tagFilter", tagFilter);
+
+        adoptSingleton(state.deviceType(), ResourceKind.DEVICE_TYPE, ResourceKind.DEVICE_TYPE_KEY,
+                plan.deviceTypeName(), "device-types", report);
+        adoptSingleton(state.alarmType(), ResourceKind.ALARM_TYPE, ResourceKind.ALARM_TYPE_KEY,
+                plan.alarmTypeName(), "alarm-types", report);
+
+        adoptDevices(state, tagFilter, report);
+        adoptRules(state, tagFilter, report);
+
+        ManifestState after = state(report);
+        report.fact("devicesNow", after.count(ResourceKind.DEVICE));
+        report.fact("rulesNow", after.count(ResourceKind.RULE));
+        report.fact("devicesPlanned", plan.deviceCount());
+        report.fact("rulesPlanned", plan.ruleCount());
+        if (after.count(ResourceKind.DEVICE) < plan.deviceCount()
+                || after.count(ResourceKind.RULE) < plan.ruleCount()) {
+            report.fact("outcome", "still incomplete; run provision to create what is genuinely missing");
+        }
+        return report.build();
+    }
+
+    private void adoptSingleton(Optional<ResourceRef> existing,
+                                ResourceKind kind,
+                                String key,
+                                String expectedName,
+                                String collection,
+                                CommandReport.Builder report) {
+        if (existing.isPresent()) {
+            return;
+        }
+        for (JsonNode candidate : client.listAll(collection, Map.of("name", expectedName))) {
+            // The name filter may be a prefix or contains match on the platform side, so the exact
+            // comparison is repeated here rather than trusted.
+            if (expectedName.equals(candidate.path("name").asText())) {
+                String id = candidate.path("id").asText();
+                journal.recordCreated(kind, key, id, expectedName);
+                report.fact("adopted." + kind.name().toLowerCase(Locale.ROOT), id);
+                return;
+            }
+        }
+    }
+
+    private void adoptDevices(ManifestState state, String tagFilter, CommandReport.Builder report) {
+        Map<String, String> keyByName = new LinkedHashMap<>();
+        plan.devices().forEach(device -> keyByName.put(device.name(), device.key()));
+
+        List<JsonNode> onPlatform = client.listAll("devices", Map.of("tag", tagFilter));
+        report.fact("devicesSeenWithTag", onPlatform.size());
+
+        int adopted = 0;
+        for (JsonNode candidate : onPlatform) {
+            String name = candidate.path("name").asText();
+            String key = keyByName.get(name);
+            if (key == null || state.find(ResourceKind.DEVICE, key).isPresent()) {
+                continue;
+            }
+            journal.recordCreated(ResourceKind.DEVICE, key, candidate.path("id").asText(), name);
+            adopted++;
+        }
+        report.fact("devicesAdopted", adopted);
+    }
+
+    private void adoptRules(ManifestState state, String tagFilter, CommandReport.Builder report) {
+        Map<String, EnvironmentPlan.PlannedRule> ruleByName = new LinkedHashMap<>();
+        plan.rules().forEach(rule -> ruleByName.put(rule.name(), rule));
+
+        List<JsonNode> onPlatform = client.listAll("rules", Map.of("tag", tagFilter));
+        report.fact("rulesSeenWithTag", onPlatform.size());
+
+        int adopted = 0;
+        int withoutDevices = 0;
+        for (JsonNode candidate : onPlatform) {
+            String name = candidate.path("name").asText();
+            EnvironmentPlan.PlannedRule planned = ruleByName.get(name);
+            if (planned == null || state.find(ResourceKind.RULE, planned.key()).isPresent()) {
+                continue;
+            }
+            // Taken from the clause the platform actually stored, not from the planner: that clause
+            // is what the rule really watches, and it cannot drift the way an allocation can.
+            List<String> deviceIds = WhenClauseDevices.parse(candidate.path("when").asText());
+            if (deviceIds.isEmpty()) {
+                withoutDevices++;
+            }
+            journal.recordRuleCreated(planned.key(), candidate.path("id").asText(), name,
+                    planned.scenario().name(), deviceIds);
+            adopted++;
+        }
+        report.fact("rulesAdopted", adopted);
+        if (withoutDevices > 0) {
+            report.warn(withoutDevices + " adopted rule(s) had no parseable device in their when "
+                    + "clause, so they carry no device mapping and the workload will skip them.");
+        }
     }
 
     // ================================================================ edge attachment

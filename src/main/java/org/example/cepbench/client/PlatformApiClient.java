@@ -13,6 +13,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,6 +37,8 @@ public final class PlatformApiClient {
 
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration RETRY_BACKOFF = Duration.ofMillis(500);
+    private static final int LIST_PAGE_SIZE = 200;
+    private static final int MAX_LIST_PAGES = 500;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -125,6 +129,48 @@ public final class PlatformApiClient {
 
     public void deactivateRule(String ruleId) {
         send("DELETE", "/rules/" + encode(ruleId) + "/activated", null, true);
+    }
+
+    // ---------------------------------------------------------------- listing
+
+    /**
+     * Reads every page of a collection, following the server's own paging.
+     *
+     * <p>The page index is bootstrapped from the first response rather than assumed: the platform's
+     * pagination DTO defaults {@code page} to 0 but annotates it {@code @Positive}, so whether the
+     * first page is 0 or 1 is not safe to guess. Starting without a {@code page} parameter and then
+     * asking for {@code returnedPage + 1} works either way.
+     *
+     * @param query extra filters, e.g. {@code tag -> "code:82301"} or {@code name -> "..."}
+     */
+    public List<JsonNode> listAll(String collectionPathSegment, Map<String, String> query) {
+        List<JsonNode> collected = new ArrayList<>();
+        Integer nextPage = null;
+        long totalElements = Long.MAX_VALUE;
+
+        // Bounded so a server that keeps reporting another page cannot spin here forever.
+        for (int request = 0; request < MAX_LIST_PAGES && collected.size() < totalElements; request++) {
+            StringBuilder path = new StringBuilder("/").append(collectionPathSegment)
+                    .append("?size=").append(LIST_PAGE_SIZE);
+            if (nextPage != null) {
+                path.append("&page=").append(nextPage);
+            }
+            query.forEach((key, value) ->
+                    path.append('&').append(key).append('=').append(encode(value)));
+
+            JsonNode page = send("GET", path.toString(), null, true);
+            JsonNode content = page.path("content");
+            if (!content.isArray() || content.isEmpty()) {
+                break;
+            }
+            content.forEach(collected::add);
+
+            totalElements = page.path("totalElements").isNumber()
+                    ? page.path("totalElements").asLong()
+                    : collected.size();
+            nextPage = page.path("page").asInt(0) + 1;
+        }
+        return collected;
     }
 
     // ---------------------------------------------------------------- alarms

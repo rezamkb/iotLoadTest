@@ -12,6 +12,7 @@ sandbox REST API. Event generation is [Phase 2](cepbench-phase2.md), which adds 
 ./gradlew.bat cepbench -Pcommand=status     -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ./gradlew.bat cepbench -Pcommand=activate   -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ./gradlew.bat cepbench -Pcommand=deactivate -Pconfig=src/main/resources/cepbench.sandbox.example.json
+./gradlew.bat cepbench -Pcommand=reconcile  -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ./gradlew.bat cepbench -Pcommand=cleanup    -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ./gradlew.bat cepbench -Pcommand=export     -Pconfig=src/main/resources/cepbench.sandbox.example.json
 ```
@@ -71,8 +72,9 @@ changes.
 
 - `cleanup` deletes **only** ids the journal records, in reverse dependency order: rules, devices,
   alarm type, device type.
-- Nothing is ever looked up by name. A resource that happens to match this run's naming convention
-  but is absent from the journal belongs to somebody else and is never touched.
+- Nothing is looked up by name during `provision`, `activate` or `cleanup`. A resource that happens
+  to match this run's naming convention but is absent from the journal is never touched by them.
+  `reconcile` is the single, explicit exception; see below.
 - A delete appends a tombstone rather than rewriting the file, so an interrupted cleanup is safe to
   re-run.
 - Opening a journal that was written against a different API host is refused: ids from one
@@ -80,6 +82,32 @@ changes.
 
 `provision` is resumable. The plan is deterministic, so a run interrupted half way through creates
 only what the journal does not already record.
+
+### When the platform and the journal disagree
+
+A `POST` that times out may already have committed on the server. The client deliberately does not
+retry creates — retrying risks a second resource nothing records — so the outcome is a resource that
+exists on the platform with no journal entry. It is invisible to `cleanup`, and the next `provision`
+hits `409 Duplicate device name`.
+
+`reconcile` repairs that:
+
+```powershell
+./gradlew.bat cepbench -Pcommand=reconcile -Pconfig=src/main/resources/cepbench.local.json
+```
+
+It lists devices and rules carrying this run's location tag (`GET /devices?tag=code:<locationCode>`,
+note the `key:value` form — a bare `?code=…` is not a filter the platform recognises and silently
+returns everything), keeps only those whose name is **exactly** one the plan produces, and journals
+the ones not already recorded. Adopted rules get their device mapping parsed back out of the `when`
+clause the platform stored, which is authoritative in a way the planner's allocation is not.
+
+This is the one place the "never adopt by name" rule is relaxed. The exact-name match against
+`cepbench-<runId>-…` is what keeps it safe: a resource that merely shares the location tag is left
+alone.
+
+Run `reconcile` before re-running `provision` after any timeout, then `provision` to create whatever
+is genuinely missing.
 
 A rule's record also carries the devices it selects on:
 

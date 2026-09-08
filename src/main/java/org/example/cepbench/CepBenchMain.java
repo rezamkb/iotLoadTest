@@ -39,7 +39,7 @@ public final class CepBenchMain {
     private static final Set<String> OFFLINE = Set.of("plan", "export");
     private static final Set<String> COMMANDS =
             Set.of("plan", "provision", "status", "activate", "deactivate", "cleanup", "export",
-                    "attach", "detach", "run");
+                    "attach", "detach", "run", "reconcile");
 
     public static void main(String[] args) throws Exception {
         System.exit(run(args, System.out, System.err));
@@ -80,6 +80,7 @@ public final class CepBenchMain {
                 case "activate" -> manager.activateAll();
                 case "deactivate" -> manager.deactivateAll();
                 case "cleanup" -> manager.cleanup();
+                case "reconcile" -> manager.reconcile();
                 case "attach" -> manager.attachDevices();
                 case "detach" -> manager.detachDevices();
                 // Progress goes straight to stdout as it happens: a run lasts minutes to hours, and
@@ -201,6 +202,7 @@ public final class CepBenchMain {
                   status      report what the manifest owns and its activation state
                   activate    activate every rule and wait until the platform confirms it
                   deactivate  deactivate every rule and wait until the platform confirms it
+                  reconcile   adopt resources this run created but never recorded
                   attach      attach every provisioned device to the configured edge
                   detach      detach them again, leaving the edge itself untouched
                   run         publish device reports through the edge and watch a sentinel rule
