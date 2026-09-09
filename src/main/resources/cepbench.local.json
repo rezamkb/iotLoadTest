@@ -43,5 +43,9 @@
     "sentinelTimeoutSeconds": 15,
     "progressIntervalSeconds": 10,
     "stopOnSentinelFailure": true
+  },
+  "cep": {
+    "diagnosticsBaseUrl": "http://127.0.0.1:8086",
+    "requestTimeoutSeconds": 10
   }
 }

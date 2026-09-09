@@ -152,6 +152,64 @@ so pure non-matching traffic is the interesting workload, not a degenerate one.
 Raise `matchingFraction` when you want firing throughput instead of retention pressure. Do not vary
 it in the same comparison as `eventsPerSecond` or the rule count.
 
+## Reading the CEP node directly
+
+An optional `cep` section points straight at the node, bypassing the platform API:
+
+```json
+"cep": {
+  "diagnosticsBaseUrl": "http://<cep-node>:8070",
+  "requestTimeoutSeconds": 10
+}
+```
+
+This is a **separate target from `platform` on purpose**, not the same base URL reused. The API
+bearer token authenticates against the API host; sending it to the CEP node would leak a credential
+to a service that has no business holding it. `CepDiagnosticsClient` therefore sends no
+`Authorization` header at all unless `cep.token` is set, which it normally need not be because
+`/diagnostics/**` is not in the CEP module's authenticated path list.
+
+Two commands:
+
+```powershell
+./gradlew.bat cepbench -Pcommand=diagnostics       -Pconfig=src/main/resources/cepbench.local.json
+./gradlew.bat cepbench -Pcommand=diagnostics-facts -Pconfig=src/main/resources/cepbench.local.json
+```
+
+Fact counting is a separate command rather than a flag because it takes the working memory lock and
+can block behind a wedged firing thread. Plain `diagnostics` is lock-free and answers even when the
+engine is stuck — which is exactly when you need it.
+
+When the section is present, `run` also reads a snapshot before and after the workload and reports
+the counter deltas:
+
+```
+cep.verdict                    STATELESS_FIRING_LOOP_DEAD: fireUntilHalt() threw java.lang.ClassCastException...
+cep.firingLoopState            FAILED
+cep.delta.insertEventCalled    14980
+cep.delta.statelessInserted    14980
+cep.delta.matchCreatedStateless 41
+cep.delta.matchFiredCompletedStateless 12
+```
+
+That is the reading the alarm count cannot give you. It localises the break in order: events that
+never arrived, arrived but were not inserted, inserted but never matched, or matched but never
+fired. A sentinel failure tells you firing stopped; this tells you where.
+
+The section is optional. Without it `run` still works, it just cannot say why firing stopped.
+
+### One node, not the cluster
+
+`diagnosticsBaseUrl` addresses a single CEP node. Each node has its own `KieSession` and its own
+`fireUntilHalt` thread, so with more than one node this is the node whose rules the run drives, not
+"the" engine. Sandbox runs `cetNodeCount = 1`, so there is one.
+
+Going through the `api` module instead would be worse here, not better: every node registers in
+Eureka under `iot-cep`, so a `@FeignClient("iot-cep")` call load-balances onto an arbitrary node.
+`CepService` already carries a comment recording that the team hit this and moved shard-specific
+operations to JMS for exactly that reason. An aggregating endpoint in `api` would need to enumerate
+Eureka instances and fan out, with no fallback — worth building for production on-call, not for this.
+
 ## When the sentinel fails
 
 The run stops (unless `stopOnSentinelFailure` is false) and reports

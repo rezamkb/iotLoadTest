@@ -2,6 +2,7 @@ package org.example.cepbench.environment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.example.cepbench.client.CepDiagnosticsClient;
 import org.example.cepbench.client.PlatformApiClient;
 import org.example.cepbench.client.PlatformApiException;
 import org.example.cepbench.config.BenchmarkConfig;
@@ -477,6 +478,73 @@ public final class EnvironmentManager implements Closeable {
         }
     }
 
+    // ================================================================ diagnostics
+
+    /**
+     * Reads the CEP node's Drools diagnostics and reports the verdict.
+     *
+     * <p>Read only and cheap by default. Run it the moment a sentinel fails and before anyone
+     * restarts the node: a restart rebuilds the session and erases the evidence.
+     *
+     * @param includeFactCounts adds per-entry-point fact counts, which is what shows retention
+     *                          pressure. It takes the working memory lock, so it can block behind a
+     *                          wedged firing thread; leave it off while a workload is running.
+     */
+    public CommandReport diagnostics(boolean includeFactCounts) {
+        BenchmarkConfig.CepTarget target = config.requireCep("diagnostics");
+        CommandReport.Builder report = CommandReport.builder("diagnostics", plan.runId());
+        report.fact("cepNode", target.diagnosticsBaseUrl());
+
+        CepDiagnosticsClient diagnosticsClient = new CepDiagnosticsClient(target);
+        JsonNode snapshot;
+        try {
+            snapshot = diagnosticsClient.snapshot(includeFactCounts, 20);
+        } catch (RuntimeException e) {
+            report.fail("Could not read diagnostics from " + target.diagnosticsBaseUrl() + ": "
+                    + e.getMessage() + ". If the workload is running and this timed out, that is "
+                    + "itself a finding: the node is not answering.");
+            return report.build();
+        }
+
+        CepDiagnosticsClient.summarise(snapshot).forEach(report::fact);
+
+        JsonNode counters = snapshot.path("counters");
+        counters.fieldNames().forEachRemaining(name ->
+                report.fact("counter." + name, counters.path(name).asLong()));
+
+        snapshot.path("jmsConsumers").forEach(consumer ->
+                report.fact("consumers." + consumer.path("queueName").asText(),
+                        consumer.path("activeConnections").asInt()
+                                + " active, " + consumer.path("failedConnections").asInt() + " failed"));
+
+        if (includeFactCounts) {
+            JsonNode sessions = snapshot.path("sessions");
+            report.fact("facts.fireUntilHalt", sessions.path("fireUntilHalt").path("totalFactCount").asLong());
+            report.fact("facts.fireAllRules", sessions.path("fireAllRules").path("totalFactCount").asLong());
+        }
+
+        if (!snapshot.path("firingLoop").path("alive").asBoolean(true)) {
+            report.fail("The stateless firing loop is not running. Capture a thread dump now; a "
+                    + "restart is the only recovery and it destroys the evidence.");
+        }
+        return report.build();
+    }
+
+    /** Returns null and records a warning rather than failing the run when diagnostics are absent. */
+    private JsonNode readDiagnostics(CepDiagnosticsClient diagnostics,
+                                     CommandReport.Builder report,
+                                     String label) {
+        if (diagnostics == null) {
+            return null;
+        }
+        try {
+            return diagnostics.snapshot();
+        } catch (RuntimeException e) {
+            report.warn(label + " unavailable from " + diagnostics.describeTarget() + ": " + e.getMessage());
+            return null;
+        }
+    }
+
     // ================================================================ edge attachment
 
     /**
@@ -588,6 +656,12 @@ public final class EnvironmentManager implements Closeable {
         report.fact("reportsPerPublish", workload.reportsPerPublish());
         report.fact("matchingFraction", workload.matchingFraction());
 
+        // Optional: without a "cep" section the run still works, it just cannot say why firing
+        // stopped, only that it did.
+        CepDiagnosticsClient diagnostics =
+                (config.cep() == null) ? null : new CepDiagnosticsClient(config.cep());
+        JsonNode before = readDiagnostics(diagnostics, report, "diagnosticsAtStart");
+
         try (EdgeMqttPublisher publisher = new EdgeMqttPublisher(edge)) {
             publisher.connect();
             LoadRunner.Result result =
@@ -615,6 +689,18 @@ public final class EnvironmentManager implements Closeable {
             if (result.publishFailures() > 0) {
                 report.warn(result.publishFailures() + " publish(es) failed; the achieved rate is "
                         + "below the requested one for MQTT reasons, not CEP ones.");
+            }
+
+            // Read straight after the workload, before anyone restarts anything. The counter deltas
+            // localise the break: events that never arrived, arrived but were not inserted, inserted
+            // but never matched, or matched but never fired.
+            JsonNode after = readDiagnostics(diagnostics, report, "diagnosticsAtEnd");
+            if (after != null) {
+                CepDiagnosticsClient.summarise(after).forEach((key, value) -> report.fact("cep." + key, value));
+                if (before != null) {
+                    CepDiagnosticsClient.counterDeltas(before, after)
+                            .forEach((key, value) -> report.fact("cep.delta." + key, value));
+                }
             }
         } catch (MqttException e) {
             report.fail("MQTT failure against " + edge.brokerUrl() + ": " + e.getMessage());

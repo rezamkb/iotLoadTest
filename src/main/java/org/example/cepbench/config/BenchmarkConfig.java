@@ -17,8 +17,19 @@ public record BenchmarkConfig(
         /** Null until an "edge" section is configured; required by attach, detach and run. */
         EdgeTarget edge,
         /** Null until a "workload" section is configured; required by run. */
-        WorkloadSpec workload
+        WorkloadSpec workload,
+        /** Null until a "cep" section is configured; enables the diagnostics readings. */
+        CepTarget cep
 ) {
+
+    public CepTarget requireCep(String command) {
+        if (cep == null) {
+            throw new IllegalStateException(
+                    command + " needs a \"cep\" section in the config with diagnosticsBaseUrl, "
+                            + "pointing straight at the CEP node rather than the platform API");
+        }
+        return cep;
+    }
 
     public EdgeTarget requireEdge(String command) {
         if (edge == null) {
@@ -106,6 +117,27 @@ public record BenchmarkConfig(
             int qos,
             int maxInflight
     ) {
+    }
+
+    /**
+     * The CEP node itself, addressed directly rather than through the platform API.
+     *
+     * <p>A separate target on purpose. The API bearer token authenticates against the platform host
+     * and must not be sent anywhere else, so this carries its own {@code token}, normally empty
+     * because {@code /diagnostics/**} is not in the CEP module's authenticated path list.
+     *
+     * <p>Points at one node. Each node has its own KieSession and its own fireUntilHalt thread, so
+     * with more than one CEP node this is the node whose rules the run drives, not "the" engine.
+     */
+    public record CepTarget(
+            String diagnosticsBaseUrl,
+            Duration requestTimeout,
+            /** Usually empty; set only if the deployment puts the endpoint behind auth. */
+            String token
+    ) {
+        public String authority() {
+            return java.net.URI.create(diagnosticsBaseUrl).getAuthority();
+        }
     }
 
     public record WorkloadSpec(

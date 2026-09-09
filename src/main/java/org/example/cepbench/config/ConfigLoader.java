@@ -86,11 +86,13 @@ public final class ConfigLoader {
                 root.has("edge") ? parseEdge(root.get("edge"), problems) : null;
         BenchmarkConfig.WorkloadSpec workload =
                 root.has("workload") ? parseWorkload(root.get("workload"), problems) : null;
+        BenchmarkConfig.CepTarget cep =
+                root.has("cep") ? parseCep(root.get("cep"), problems) : null;
 
         if (!problems.isEmpty()) {
             throw new IllegalArgumentException(describe(problems));
         }
-        return new BenchmarkConfig(platform, run, manifestDirectory, edge, workload);
+        return new BenchmarkConfig(platform, run, manifestDirectory, edge, workload, cep);
     }
 
     private BenchmarkConfig.PlatformTarget parsePlatform(JsonNode node, List<String> problems, boolean requireToken) {
@@ -243,10 +245,33 @@ public final class ConfigLoader {
                 alternativeClientId,
                 brokerUrl,
                 publishTopic,
-                resolveSecret(node, "username", "usernameEnvironmentVariable", problems),
-                resolveSecret(node, "password", "passwordEnvironmentVariable", problems),
+                resolveSecret(node, "edge", "username", "usernameEnvironmentVariable", problems),
+                resolveSecret(node, "edge", "password", "passwordEnvironmentVariable", problems),
                 qos,
                 positive(node, "maxInflight", 10_000, problems));
+    }
+
+    /**
+     * The CEP node, addressed directly. Deliberately does not inherit the platform token: that
+     * credential authenticates against the API host and sending it to a different host would leak it.
+     */
+    private BenchmarkConfig.CepTarget parseCep(JsonNode node, List<String> problems) {
+        if (!node.isObject()) {
+            problems.add("\"cep\" must be an object");
+            return null;
+        }
+        String baseUrl = requireText(node, "cep.diagnosticsBaseUrl",
+                text(node, "diagnosticsBaseUrl", ""), problems);
+        if (!baseUrl.isEmpty() && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+            problems.add("cep.diagnosticsBaseUrl must start with http:// or https://");
+        }
+        while (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        return new BenchmarkConfig.CepTarget(
+                baseUrl,
+                Duration.ofSeconds(positive(node, "requestTimeoutSeconds", 10, problems)),
+                resolveSecret(node, "cep", "token", "tokenEnvironmentVariable", problems));
     }
 
     private BenchmarkConfig.WorkloadSpec parseWorkload(JsonNode node, List<String> problems) {
@@ -276,7 +301,7 @@ public final class ConfigLoader {
      * Absent means absent: an empty broker credential is normal, since the usual setup authenticates
      * on the MQTT client id alone.
      */
-    private String resolveSecret(JsonNode node, String inlineField, String variableField, List<String> problems) {
+    private String resolveSecret(JsonNode node, String section, String inlineField, String variableField, List<String> problems) {
         String inline = text(node, inlineField, "");
         if (!inline.isEmpty()) {
             return inline;
@@ -286,7 +311,7 @@ public final class ConfigLoader {
             return "";
         }
         if (!ENV_VARIABLE_NAME.matcher(variable).matches()) {
-            problems.add("edge." + variableField + " must be the NAME of an environment variable");
+            problems.add(section + "." + variableField + " must be the NAME of an environment variable");
             return "";
         }
         String resolved = environment.apply(variable);
