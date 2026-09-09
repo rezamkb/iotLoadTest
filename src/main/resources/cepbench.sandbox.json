@@ -1,9 +1,7 @@
 {
   "platform": {
     "apiBaseUrl": "https://api.sandpod.ir/srv/iotsand",
-    "tokenEnvironmentVariable": "CEPBENCH_API_TOKEN",
     "token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIyMjQ1NzgyNyIsImlzcyI6Imh0dHBzOi8vd3d3LmZhbmFwaXVtLmNvbS8iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJpb3RiYW5rIiwiZXhwIjoxOTY4NzU0MjE0LCJnaXZlbl9uYW1lIjoiIiwiaWF0IjoxNjUzMzk0MjE0LCJmYW1pbHlfbmFtZSI6IiIsInBpY3R1cmUiOiIiLCJjbGllbnRfaWQiOiIyMjQ1NzgyN2Q1NThiNDNmOGFhMDZjM2UyYTRkNzYyMjIifQ.LiWClAQ1DQeNghZ4oVtN1f8d2oVor2qGps2gxhNAxhcb8GFoCZ73bn2x7JddMhqwiMDqy_VmpnGWf6fXniqZKut5-vZJxXGGwZIZ4WEcx_-R9Jx4oWKFcYlM2Dy6adHJQpqtgu6hg1EMJ8MfyZ37JKtWzoO8bFrXqGnmpmN0iC0",
-
     "connectTimeoutSeconds": 10,
     "requestTimeoutSeconds": 60,
     "activationTimeoutSeconds": 180,
@@ -11,12 +9,12 @@
     "concurrency": 1
   },
   "run": {
-    "runId": "drools-baseline-001",
-    "locationCode": "1000",
+    "runId": "smoke-002",
+    "locationCode": "82301",
     "scenarios": {
-      "singleSelect": 1,
-      "multiSelectTwoDevice": 1,
-      "windowing": 1
+      "singleSelect": 10,
+      "multiSelectTwoDevice": 5,
+      "windowing": 5
     },
     "maxRulesPerDevice": 1,
     "alarmTypeCode": "9001",
@@ -26,5 +24,24 @@
       "windowLength": 3
     }
   },
-  "manifestDirectory": ".cepbench"
+  "manifestDirectory": ".cepbench",
+  "edge": {
+    "edgeId": "ucl2aswl7j6",
+    "clientId": "GQVTOJ7DU6HLM66QLHJFD8Q",
+    "alternativeClientId": "RKO6U43QSUR5ABBU5BAV0SC",
+    "brokerUrl": "tcp://10.35.43.48:1883",
+    "publishTopic": "dvcasy/edge/twin/report",
+    "qos": 0,
+    "maxInflight": 10000
+  },
+  "workload": {
+    "eventsPerSecond": 50,
+    "durationSeconds": 300,
+    "reportsPerPublish": 1,
+    "matchingFraction": 0.0,
+    "sentinelIntervalSeconds": 30,
+    "sentinelTimeoutSeconds": 15,
+    "progressIntervalSeconds": 10,
+    "stopOnSentinelFailure": true
+  }
 }
