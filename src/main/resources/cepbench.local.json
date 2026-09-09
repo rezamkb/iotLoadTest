@@ -1,20 +1,20 @@
 {
   "platform": {
-    "apiBaseUrl": "https://api.sandpod.ir/srv/iotsand",
+    "apiBaseUrl": "10.35.44.18:8003/srv/iot",
     "token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIyMjQ1NzgyNyIsImlzcyI6Imh0dHBzOi8vd3d3LmZhbmFwaXVtLmNvbS8iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJpb3RiYW5rIiwiZXhwIjoxOTY4NzU0MjE0LCJnaXZlbl9uYW1lIjoiIiwiaWF0IjoxNjUzMzk0MjE0LCJmYW1pbHlfbmFtZSI6IiIsInBpY3R1cmUiOiIiLCJjbGllbnRfaWQiOiIyMjQ1NzgyN2Q1NThiNDNmOGFhMDZjM2UyYTRkNzYyMjIifQ.LiWClAQ1DQeNghZ4oVtN1f8d2oVor2qGps2gxhNAxhcb8GFoCZ73bn2x7JddMhqwiMDqy_VmpnGWf6fXniqZKut5-vZJxXGGwZIZ4WEcx_-R9Jx4oWKFcYlM2Dy6adHJQpqtgu6hg1EMJ8MfyZ37JKtWzoO8bFrXqGnmpmN0iC0",
     "connectTimeoutSeconds": 10,
     "requestTimeoutSeconds": 60,
     "activationTimeoutSeconds": 180,
     "activationPollIntervalMillis": 1000,
-    "concurrency": 4
+    "concurrency": 1
   },
   "run": {
-    "runId": "smoke-001",
-    "locationCode": "1000",
+    "runId": "beta-002",
+    "locationCode": "82301",
     "scenarios": {
-      "singleSelect": 1,
-      "multiSelectTwoDevice": 1,
-      "windowing": 1
+      "singleSelect": 10,
+      "multiSelectTwoDevice": 5,
+      "windowing": 5
     },
     "maxRulesPerDevice": 1,
     "alarmTypeCode": "9001",
@@ -26,10 +26,10 @@
   },
   "manifestDirectory": ".cepbench",
   "edge": {
-    "edgeId": "ucl2aswl7j6",
-    "clientId": "GQVTOJ7DU6HLM66QLHJFD8Q",
-    "alternativeClientId": "RKO6U43QSUR5ABBU5BAV0SC",
-    "brokerUrl": "tcp://10.35.43.48:1883",
+    "edgeId": "e6u1189euvq",
+    "clientId": "IBQRFLEG43210RYU92OVEG1",
+    "alternativeClientId": "5DZISKOYCEC0AY0BZMQ5ND8",
+    "brokerUrl": "tcp://10.35.44.18:1883",
     "publishTopic": "dvcasy/edge/twin/report",
     "qos": 0,
     "maxInflight": 10000
