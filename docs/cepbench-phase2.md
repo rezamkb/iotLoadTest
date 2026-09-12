@@ -126,8 +126,20 @@ the production failure looks identical to a healthy run from outside: events acc
 the session, never fired.
 
 So one rule is reserved as a sentinel. Every `sentinelIntervalSeconds`, the probe reads the rule's
-alarm count, publishes a reading that must match it, and waits up to `sentinelTimeoutSeconds` for
+firing count, publishes a reading that must match it, and waits up to `sentinelTimeoutSeconds` for
 that count to advance.
+
+The firing count is `PlatformApiClient.countRuleFirings`: the sum of `occurrenceCount` across the
+rule's alarm rows. It must not be the row count. `AlarmServiceImpl.raise` de-duplicates on
+`(tenant, alarmType, ruleId, status=ACTIVE)`, bumping `occurrenceCount` on the existing row instead
+of inserting, so `totalElements` for a rule goes 0 → 1 on the first firing and never moves again —
+a probe watching it reports "did not fire" from the second firing onwards however healthy the
+engine is.
+
+`sentinelTimeoutSeconds` must be **less than** `sentinelIntervalSeconds`; the loader rejects the
+config otherwise. Only one probe is in flight at a time, so a timeout at or above the interval means
+a timing-out probe outlives its slot and the next one is skipped — halving the probe rate exactly
+when probes start timing out.
 
 Three details that matter:
 
@@ -192,7 +204,7 @@ cep.delta.matchCreatedStateless 41
 cep.delta.matchFiredCompletedStateless 12
 ```
 
-That is the reading the alarm count cannot give you. It localises the break in order: events that
+That is the reading the firing count cannot give you. It localises the break in order: events that
 never arrived, arrived but were not inserted, inserted but never matched, or matched but never
 fired. A sentinel failure tells you firing stopped; this tells you where.
 

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>The count is a sum of {@code occurrenceCount}, not a count of alarm rows: the platform
  * de-duplicates repeat firings onto the ACTIVE alarm it already has, so row count is flat from the
  * second firing onwards and would report a healthy engine as dead. See
- * {@link PlatformApiClient#countAlarmsForRule(String)}.
+ * {@link PlatformApiClient#countRuleFirings(String)}.
  *
  * <p>The sentinel rule is excluded from the background load, so an advance can only have come from
  * this probe.
@@ -59,18 +59,18 @@ public final class SentinelProbe {
     }
 
     /**
-     * Publishes one matching reading and waits for the rule's alarm count to rise.
+     * Publishes one matching reading and waits for the rule's firing count to rise.
      *
-     * <p>The baseline is read immediately before publishing rather than cached between probes: an
-     * alarm raised by a previous probe that landed late would otherwise be counted as this one
+     * <p>The baseline is read immediately before publishing rather than cached between probes: a
+     * firing from a previous probe that landed late would otherwise be counted as this one
      * succeeding.
      */
     public Result probe() {
         long baseline;
         try {
-            baseline = client.countAlarmsForRule(target.ruleId());
+            baseline = client.countRuleFirings(target.ruleId());
         } catch (RuntimeException e) {
-            return Result.error("Could not read the alarm baseline: " + e.getMessage());
+            return Result.error("Could not read the firing baseline: " + e.getMessage());
         }
 
         long id = sequence.incrementAndGet();
@@ -88,11 +88,11 @@ public final class SentinelProbe {
                 Thread.sleep(pollInterval.toMillis());
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
-                return Result.error("Interrupted while waiting for the sentinel alarm");
+                return Result.error("Interrupted while waiting for the sentinel rule to fire");
             }
             long current;
             try {
-                current = client.countAlarmsForRule(target.ruleId());
+                current = client.countRuleFirings(target.ruleId());
             } catch (RuntimeException e) {
                 // A transient API failure is not evidence that firing stopped; keep waiting.
                 continue;
@@ -105,8 +105,10 @@ public final class SentinelProbe {
     }
 
     /**
-     * @param fired          whether the alarm count advanced within the timeout
+     * @param fired          whether the firing count advanced within the timeout
      * @param latency        time from publish to the first observed advance; null when it did not
+     * @param baseline       firing count read just before publishing, or -1 when it was never read
+     * @param observed       firing count at the advance; equal to the baseline when none was seen
      * @param error          set when the probe itself could not run, which is not the same as a
      *                       failure to fire and must not be reported as one
      */
@@ -118,7 +120,8 @@ public final class SentinelProbe {
 
         static Result timedOut(Duration timeout, long baseline) {
             return new Result(false, null, baseline, baseline,
-                    "No alarm within " + timeout.toSeconds() + "s; the rule did not fire");
+                    "The firing count did not advance within " + timeout.toSeconds()
+                            + "s; the rule did not fire");
         }
 
         static Result error(String message) {
@@ -142,7 +145,7 @@ public final class SentinelProbe {
 
         public String describe() {
             if (fired) {
-                return "fired in " + latency.toMillis() + "ms (alarms " + baseline + " -> " + observed + ")";
+                return "fired in " + latency.toMillis() + "ms (firings " + baseline + " -> " + observed + ")";
             }
             return error;
         }

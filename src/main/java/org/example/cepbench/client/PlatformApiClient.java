@@ -173,11 +173,15 @@ public final class PlatformApiClient {
         return collected;
     }
 
-    // ---------------------------------------------------------------- alarms
+    // ---------------------------------------------------------------- firings
 
     /**
      * Total times the platform has recorded one rule firing: the sum of {@code occurrenceCount}
      * across every alarm row raised by that rule.
+     *
+     * <p>Named for firings rather than alarms because the two are not the same number and the
+     * difference is the whole point. Alarm rows are what {@code /alarms} returns; firings are what
+     * the sentinel needs.
      *
      * <p>This is the sentinel's only source of truth. It is what separates "the producer is still
      * publishing" from "Drools is still evaluating and firing": if this stops advancing while events
@@ -197,7 +201,7 @@ public final class PlatformApiClient {
      * ({@code CoreDtoUtils.generateCorePage2}); deriving the next index from the response would skip
      * a page.
      */
-    public long countAlarmsForRule(String ruleId) {
+    public long countRuleFirings(String ruleId) {
         long occurrences = 0L;
 
         // Bounded so a server that keeps reporting another page cannot spin here forever.

@@ -103,7 +103,7 @@ public final class CepDiagnosticsClient {
     /**
      * Counter deltas between two snapshots.
      *
-     * <p>This is the reading the alarm count cannot give you. Comparing before and after a workload
+     * <p>This is the reading the firing count cannot give you. Comparing before and after a workload
      * answers, in order: did the events reach the node at all, were they inserted into a session,
      * did they create matches, and were those matches fired. Whichever of those stops advancing is
      * where the pipeline broke.
