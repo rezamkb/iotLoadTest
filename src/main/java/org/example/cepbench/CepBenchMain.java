@@ -39,7 +39,8 @@ public final class CepBenchMain {
     private static final Set<String> OFFLINE = Set.of("plan", "export");
     private static final Set<String> COMMANDS =
             Set.of("plan", "provision", "status", "activate", "deactivate", "cleanup", "export",
-                    "attach", "detach", "run", "reconcile", "diagnostics", "diagnostics-facts");
+                    "attach", "detach", "run", "reconcile", "diagnostics", "diagnostics-facts",
+                    "firings");
 
     public static void main(String[] args) throws Exception {
         System.exit(run(args, System.out, System.err));
@@ -77,6 +78,7 @@ public final class CepBenchMain {
             CommandReport report = switch (command) {
                 case "provision" -> manager.provision();
                 case "status" -> manager.status();
+                case "firings" -> manager.firings();
                 case "activate" -> manager.activateAll();
                 case "deactivate" -> manager.deactivateAll();
                 case "cleanup" -> manager.cleanup();
@@ -204,6 +206,8 @@ public final class CepBenchMain {
                   plan        render the plan and example rules; makes no network calls
                   provision   create the device type, alarm type, devices and rules (inactive)
                   status      report what the manifest owns and its activation state
+                  firings     report which rules have fired and how many times each
+                              (cumulative for the rule's life, not per run)
                   activate    activate every rule and wait until the platform confirms it
                   deactivate  deactivate every rule and wait until the platform confirms it
                   reconcile   adopt resources this run created but never recorded

@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,6 +58,8 @@ public final class EnvironmentManager implements Closeable {
     private static final String DEVICE_DESCRIPTION = "cepbench synthetic device";
     private static final String ALARM_TYPE_DESCRIPTION = "cepbench synthetic alarm type";
     private static final String ALARM_SEVERITY = "Warn";
+    /** How many rule keys the firings report lists inline before collapsing to a count. */
+    private static final int MAX_KEYS_LISTED = 20;
     private static final Map<String, String> DEVICE_ATTRIBUTES = Map.of(
             "temp", "number",
             "occ", "boolean");
@@ -335,6 +338,130 @@ public final class EnvironmentManager implements Closeable {
                     + "attributable to a rule count");
         }
         return report.build();
+    }
+
+    // ================================================================ firings
+
+    /**
+     * Read only. Asks the platform how many times each rule in the manifest has fired.
+     *
+     * <p>This is the question the alarm list looks like it answers and does not.
+     * {@code AlarmServiceImpl.raise} de-duplicates on {@code (tenant, alarmType, ruleId, ACTIVE)},
+     * bumping {@code occurrenceCount} on the row it already has, so the number of alarm rows tells
+     * you how many distinct rules fired at least once and nothing whatever about how often. Per-rule
+     * firings is the sum of {@code occurrenceCount}, which is what
+     * {@link PlatformApiClient#countRuleFirings(String)} returns.
+     *
+     * <p>Counts are cumulative over the life of the rule, not per run: a rule driven by three
+     * successive workloads reports the total of all three. To attribute firings to one run, either
+     * provision a fresh runId or take the difference between two invocations of this command.
+     *
+     * <p>A rule whose count could not be read is reported as a failure and left out of the totals
+     * entirely. It is never folded into "never fired": an unreachable API is not evidence that a
+     * rule is idle, and the two must not be allowed to look alike in a report.
+     */
+    public CommandReport firings() throws IOException {
+        CommandReport.Builder report = CommandReport.builder("firings", plan.runId());
+        ManifestState state = state(report);
+
+        report.fact("apiBaseUrl", config.platform().apiBaseUrl());
+
+        Collection<ResourceRef> rules = state.of(ResourceKind.RULE).values();
+        report.fact("rules", rules.size());
+        if (rules.isEmpty()) {
+            report.warn("The manifest records no rule, so there is nothing to count. Provision first.");
+            return report.build();
+        }
+
+        Map<String, Long> counted = new ConcurrentHashMap<>();
+        Map<ResourceRef, String> failures = forEachConcurrently(rules,
+                rule -> counted.put(rule.id(), client.countRuleFirings(rule.id())));
+        recordFailures(failures, report, rule -> "count firings for " + rule.name());
+
+        // Highest first, so the rules that did something are at the top whatever the rule count.
+        // Key order breaks ties, so two runs of this command on an idle environment print the same.
+        List<ResourceRef> answered = rules.stream()
+                .filter(rule -> counted.containsKey(rule.id()))
+                .sorted(Comparator.comparingLong((ResourceRef rule) -> counted.get(rule.id()))
+                        .reversed()
+                        .thenComparing(ResourceRef::key))
+                .toList();
+
+        List<ResourceRef> fired = answered.stream()
+                .filter(rule -> counted.get(rule.id()) > 0L)
+                .toList();
+        List<ResourceRef> neverFired = answered.stream()
+                .filter(rule -> counted.get(rule.id()) == 0L)
+                .toList();
+        long totalFirings = answered.stream().mapToLong(rule -> counted.get(rule.id())).sum();
+
+        report.fact("rulesCounted", answered.size());
+        report.fact("rulesFired", fired.size());
+        report.fact("rulesNeverFired", neverFired.size());
+        report.fact("totalFirings", totalFirings);
+
+        // The same rule the run would hold back, chosen the same way, so its firings can be told
+        // apart from the background load's. With matchingFraction at 0 it is the only one that can
+        // have fired at all.
+        WorkloadTargets targets = WorkloadTargets.from(state, config.run().template());
+        String sentinelRuleId = targets.sentinel().map(WorkloadTargets.Target::ruleId).orElse(null);
+        targets.sentinel().ifPresent(target -> report.fact("sentinelRule", target.ruleKey()));
+
+        for (RuleScenario scenario : RuleScenario.values()) {
+            List<ResourceRef> ofScenario = answered.stream()
+                    .filter(rule -> scenario.name().equals(rule.scenario()))
+                    .toList();
+            if (ofScenario.isEmpty()) {
+                continue;
+            }
+            long scenarioFirings = ofScenario.stream().mapToLong(rule -> counted.get(rule.id())).sum();
+            long scenarioFired = ofScenario.stream().filter(rule -> counted.get(rule.id()) > 0L).count();
+            report.fact("scenario." + scenario.slug(), scenarioFirings + " firing(s) from "
+                    + scenarioFired + "/" + ofScenario.size() + " rule(s)");
+        }
+
+        for (ResourceRef rule : fired) {
+            // The platform id is printed rather than the name because it is what you paste into
+            // GET /alarms?ruleId= to see the alarms behind the number.
+            report.fact("fired." + rule.key(), counted.get(rule.id())
+                    + "  " + scenarioLabel(rule)
+                    + "  " + rule.id()
+                    + (rule.id().equals(sentinelRuleId) ? "  (sentinel)" : ""));
+        }
+        if (!neverFired.isEmpty()) {
+            report.fact("neverFired", summariseKeys(neverFired));
+        }
+
+        if (fired.isEmpty() && !answered.isEmpty()) {
+            report.warn("No rule in this manifest has ever fired. Check that the rules are active "
+                    + "(status), that the devices are attached to the edge (status), and that the "
+                    + "edge is publishing on the client id the platform registered.");
+        }
+        if (config.workload() != null && config.workload().matchingFraction() == 0.0d
+                && !neverFired.isEmpty()) {
+            // Not a fault, and the most common thing to misread in this report.
+            report.warn("workload.matchingFraction is 0.0, so every background event is built NOT to "
+                    + "satisfy its rule; only the sentinel is sent matching readings. "
+                    + neverFired.size() + " rule(s) at zero is the configured behaviour, not a "
+                    + "failure. Raise matchingFraction to exercise the rest.");
+        }
+        return report.build();
+    }
+
+    private static String scenarioLabel(ResourceRef rule) {
+        // Journals written before rules recorded their scenario. Saying so beats printing a blank
+        // column and letting someone read it as a shape the benchmark does not generate.
+        return (rule.scenario() == null) ? "<scenario not recorded>" : rule.scenario();
+    }
+
+    /** Keys on one line, capped, so a 500-rule environment does not print 480 zeroes. */
+    private static String summariseKeys(List<ResourceRef> refs) {
+        int shown = Math.min(refs.size(), MAX_KEYS_LISTED);
+        String keys = refs.subList(0, shown).stream()
+                .map(ResourceRef::key)
+                .sorted()
+                .collect(java.util.stream.Collectors.joining(", "));
+        return (refs.size() > shown) ? keys + ", (+" + (refs.size() - shown) + " more)" : keys;
     }
 
     // ================================================================ cleanup
