@@ -35,7 +35,7 @@
     "maxInflight": 10000
   },
   "workload": {
-    "eventsPerSecond": 50,
+    "eventsPerSecond": 5,
     "durationSeconds": 300,
     "reportsPerPublish": 1,
     "matchingFraction": 0.0,

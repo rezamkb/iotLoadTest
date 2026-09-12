@@ -84,15 +84,22 @@ tasks.test {
 // provision, activate, deactivate and cleanup change the environment the config
 // points at. Run plan first to see the target and the resource counts.
 // ---------------------------------------------------------------------------
+
+//   src/main/resources/cepbench.sandbox.json
+//   src/main/resources/cepbench.local.json
+val defaultCepBenchConfig = "src/main/resources/cepbench.sandbox.json"
+val cepBenchMainClass = "org.example.cepbench.CepBenchMain"
+
+
 tasks.register<JavaExec>("cepbench-plan") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("plan"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
 
@@ -100,11 +107,11 @@ tasks.register<JavaExec>("cepbench-provision") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("provision"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
 
@@ -112,29 +119,38 @@ tasks.register<JavaExec>("cepbench-status") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("status"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
 
 
-
+tasks.register<JavaExec>("cepbench-active") {
+    group = "application"
+    description = "Provision, activate, inspect and clean up a CEP benchmark environment"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set(cepBenchMainClass)
+    args(
+        providers.gradleProperty("command").getOrElse("activate"),
+        providers.gradleProperty("config")
+            .getOrElse(defaultCepBenchConfig)
+    )
+}
 
 tasks.register<JavaExec>("cepbench-attach") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("attach"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
-
 
 
 
@@ -142,11 +158,11 @@ tasks.register<JavaExec>("cepbench-export") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("export"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
 
@@ -155,11 +171,11 @@ tasks.register<JavaExec>("cepbench-reconcile") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("reconcile"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
 
@@ -167,10 +183,36 @@ tasks.register<JavaExec>("cepbench-run") {
     group = "application"
     description = "Provision, activate, inspect and clean up a CEP benchmark environment"
     classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.example.cepbench.CepBenchMain")
+    mainClass.set(cepBenchMainClass)
     args(
         providers.gradleProperty("command").getOrElse("run"),
         providers.gradleProperty("config")
-            .getOrElse("src/main/resources/cepbench.local.json")
+            .getOrElse(defaultCepBenchConfig)
     )
 }
+tasks.register<JavaExec>("cepbench-diagnostics") {
+    group = "application"
+    description = "Provision, activate, inspect and clean up a CEP benchmark environment"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set(cepBenchMainClass)
+    args(
+        providers.gradleProperty("command").getOrElse("diagnostics"),
+        providers.gradleProperty("config")
+            .getOrElse(defaultCepBenchConfig)
+    )
+}
+tasks.register<JavaExec>("cepbench-diagnostics-facts") {
+    group = "application"
+    description = "Provision, activate, inspect and clean up a CEP benchmark environment"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set(cepBenchMainClass)
+    args(
+        providers.gradleProperty("command").getOrElse("diagnostics-facts"),
+        providers.gradleProperty("config")
+            .getOrElse(defaultCepBenchConfig)
+    )
+}
+
+
+
+
