@@ -285,13 +285,36 @@ public final class ConfigLoader {
             problems.add("workload.matchingFraction must be between 0.0 and 1.0");
         }
 
+        int eventsPerSecond = positive(node, "eventsPerSecond", 100, problems);
+        int reportsPerPublish = positive(node, "reportsPerPublish", 1, problems);
+        // publishesPerSecond floors this division, so an indivisible pair silently sends a rate other
+        // than the one requested: 5/2 floors to 2 publishes carrying 4 events, and 1/2 floors to 0,
+        // is clamped to 1 publish, and sends double what was asked. Either way the run reports a rate
+        // nobody chose, so refuse the config instead.
+        if (eventsPerSecond % reportsPerPublish != 0) {
+            problems.add("workload.eventsPerSecond (" + eventsPerSecond + ") must be a multiple of "
+                    + "workload.reportsPerPublish (" + reportsPerPublish + "); otherwise the achieved "
+                    + "event rate is not the requested one");
+        }
+
+        int sentinelIntervalSeconds = positive(node, "sentinelIntervalSeconds", 30, problems);
+        int sentinelTimeoutSeconds = positive(node, "sentinelTimeoutSeconds", 15, problems);
+        // Only one probe is ever in flight: the next slot is skipped while one is still waiting. A
+        // timeout at or above the interval therefore halves the probe rate exactly when probes start
+        // timing out, which is when the run most needs samples.
+        if (sentinelTimeoutSeconds >= sentinelIntervalSeconds) {
+            problems.add("workload.sentinelTimeoutSeconds (" + sentinelTimeoutSeconds + ") must be "
+                    + "less than workload.sentinelIntervalSeconds (" + sentinelIntervalSeconds
+                    + "), or a timing-out probe outlives its slot and the next one is skipped");
+        }
+
         return new BenchmarkConfig.WorkloadSpec(
-                positive(node, "eventsPerSecond", 100, problems),
+                eventsPerSecond,
                 Duration.ofSeconds(positive(node, "durationSeconds", 600, problems)),
-                positive(node, "reportsPerPublish", 1, problems),
+                reportsPerPublish,
                 matchingFraction,
-                Duration.ofSeconds(positive(node, "sentinelIntervalSeconds", 30, problems)),
-                Duration.ofSeconds(positive(node, "sentinelTimeoutSeconds", 15, problems)),
+                Duration.ofSeconds(sentinelIntervalSeconds),
+                Duration.ofSeconds(sentinelTimeoutSeconds),
                 Duration.ofSeconds(positive(node, "progressIntervalSeconds", 10, problems)),
                 node.path("stopOnSentinelFailure").asBoolean(true));
     }

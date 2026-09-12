@@ -671,20 +671,32 @@ public final class EnvironmentManager implements Closeable {
             report.fact("eventsSent", result.eventsSent());
             report.fact("achievedEventsPerSecond", result.achievedEventsPerSecond());
             report.fact("publishFailures", result.publishFailures());
-            report.fact("sentinelsRun", result.sentinelResults().size());
+            report.fact("sentinelsRun", result.sentinelSamples().size());
             report.fact("sentinelsFired", result.sentinelsFired());
 
-            int failureIndex = result.firstFiringFailureIndex();
-            if (failureIndex >= 0) {
-                long secondsIn = failureIndex * workload.sentinelInterval().toSeconds();
+            long couldNotRun = result.sentinelsCouldNotRun();
+            if (couldNotRun > 0L) {
+                report.fact("sentinelsCouldNotRun", couldNotRun);
+            }
+
+            java.util.Optional<LoadRunner.SentinelSample> firstFailure = result.firstFiringFailure();
+            if (firstFailure.isPresent()) {
+                long secondsIn = firstFailure.get().at().toSeconds();
                 report.fact("firstFiringFailureAfterSeconds", secondsIn);
-                report.fail("The sentinel rule stopped firing about " + secondsIn + "s into the run "
-                        + "while publishing continued. This is the production symptom. Capture a "
-                        + "thread dump and GET /diagnostics/drools from the CEP node BEFORE "
-                        + "restarting it; a restart destroys the evidence.");
-            } else if (result.sentinelResults().isEmpty()) {
+                report.fail("The sentinel rule stopped firing " + secondsIn + "s into the run while "
+                        + "publishing continued. This is the production symptom. Capture a thread "
+                        + "dump and GET /diagnostics/drools from the CEP node BEFORE restarting it; "
+                        + "a restart destroys the evidence.");
+            } else if (result.sentinelSamples().isEmpty()) {
                 report.warn("No sentinel completed, so this run proves nothing about firing. Either "
                         + "the run was shorter than sentinelIntervalSeconds, or no rule was usable.");
+            }
+            if (couldNotRun > 0L) {
+                // Named rather than smoothed over: each one is a probe the run paid for and did not
+                // get an answer from, so the firing evidence is thinner than sentinelsRun suggests.
+                report.warn(couldNotRun + " sentinel probe(s) could not run at all — the platform API "
+                        + "or the broker was unreachable, not the engine. Those slots produced no "
+                        + "evidence either way.");
             }
             if (result.publishFailures() > 0) {
                 report.warn(result.publishFailures() + " publish(es) failed; the achieved rate is "

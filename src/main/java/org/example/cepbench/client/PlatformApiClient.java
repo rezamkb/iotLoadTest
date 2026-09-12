@@ -176,25 +176,51 @@ public final class PlatformApiClient {
     // ---------------------------------------------------------------- alarms
 
     /**
-     * Total alarms the platform has recorded for one rule.
+     * Total times the platform has recorded one rule firing: the sum of {@code occurrenceCount}
+     * across every alarm row raised by that rule.
      *
      * <p>This is the sentinel's only source of truth. It is what separates "the producer is still
      * publishing" from "Drools is still evaluating and firing": if this stops advancing while events
      * keep being accepted, the engine has stopped, which is the production symptom.
      *
-     * <p>Reads {@code totalElements} from the paged response rather than counting the returned page,
-     * so it stays correct once the count exceeds one page.
+     * <p>It must be the occurrence sum, never the row count. {@code AlarmServiceImpl.raise}
+     * de-duplicates on {@code (tenant, alarmType, ruleId, status=ACTIVE)}: while an alarm stays
+     * ACTIVE a repeat firing bumps {@code occurrenceCount} on the existing row instead of inserting
+     * a new one. A rule's {@code totalElements} therefore goes 0 -> 1 on its first firing and never
+     * moves again, so a probe watching row count reports "did not fire" from the second firing
+     * onwards however healthy the engine is.
+     *
+     * <p>Rows are summed across all pages rather than just the first: handling an alarm moves it out
+     * of ACTIVE and the next firing opens a fresh row, so one rule can accumulate several. Paging is
+     * driven by {@code hasNext} and a local zero-based counter, because the request parameter is
+     * zero-based while this response's own {@code page} field is one-based
+     * ({@code CoreDtoUtils.generateCorePage2}); deriving the next index from the response would skip
+     * a page.
      */
     public long countAlarmsForRule(String ruleId) {
-        JsonNode page = send("GET", "/alarms?ruleId=" + encode(ruleId) + "&size=1", null, true);
-        JsonNode total = page.path("totalElements");
-        if (total.isNumber()) {
-            return total.asLong();
+        long occurrences = 0L;
+
+        // Bounded so a server that keeps reporting another page cannot spin here forever.
+        for (int page = 0; page < MAX_LIST_PAGES; page++) {
+            JsonNode body = send("GET", "/alarms?ruleId=" + encode(ruleId)
+                    + "&size=" + LIST_PAGE_SIZE + "&page=" + page, null, true);
+
+            JsonNode content = body.path("content");
+            if (!content.isArray() || content.isEmpty()) {
+                break;
+            }
+            for (JsonNode alarm : content) {
+                JsonNode count = alarm.path("occurrenceCount");
+                // A row without the field still stands for at least one firing, so fall back to
+                // counting it rather than failing the probe: an undercount reads as a plateau, which
+                // is at worst a false alarm, while an exception aborts the run.
+                occurrences += count.isNumber() ? Math.max(1L, count.asLong()) : 1L;
+            }
+            if (!body.path("hasNext").asBoolean(false)) {
+                break;
+            }
         }
-        // Older or differently shaped responses: fall back to the page itself rather than failing
-        // the probe, and let the caller see a plateau rather than an exception.
-        JsonNode content = page.path("content");
-        return content.isArray() ? content.size() : 0L;
+        return occurrences;
     }
 
     // ---------------------------------------------------------------- edge attachment

@@ -14,8 +14,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>Publish rate proves only that the producer is alive. The production failure being reproduced
  * looks exactly like a healthy run from the outside: events are accepted, inserted into the session,
  * and never evaluated. So the probe sends a reading that must match its rule and then waits for the
- * platform's alarm count for that rule to advance. A count that stops advancing while publishing
- * continues is the failure.
+ * platform's recorded firing count for that rule to advance. A count that stops advancing while
+ * publishing continues is the failure.
+ *
+ * <p>The count is a sum of {@code occurrenceCount}, not a count of alarm rows: the platform
+ * de-duplicates repeat firings onto the ACTIVE alarm it already has, so row count is flat from the
+ * second firing onwards and would report a healthy engine as dead. See
+ * {@link PlatformApiClient#countAlarmsForRule(String)}.
  *
  * <p>The sentinel rule is excluded from the background load, so an advance can only have come from
  * this probe.
@@ -123,6 +128,16 @@ public final class SentinelProbe {
         /** True when the probe ran and the rule did not fire: the reproduction being hunted. */
         public boolean isFiringFailure() {
             return !fired && baseline >= 0L;
+        }
+
+        /**
+         * True when the probe could not ask the question at all — the baseline read or the publish
+         * failed. A negative baseline is the marker, since neither case ever read one. This is the
+         * complement of {@link #isFiringFailure()} among probes that did not fire, and the two must
+         * stay distinct: an unreachable API says nothing about whether Drools is firing.
+         */
+        public boolean couldNotRun() {
+            return !fired && baseline < 0L;
         }
 
         public String describe() {

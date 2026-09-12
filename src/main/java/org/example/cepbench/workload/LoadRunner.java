@@ -63,7 +63,7 @@ public final class LoadRunner {
                             + "the manifest records each rule's devices.");
         }
 
-        List<SentinelProbe.Result> sentinelResults = new ArrayList<>();
+        List<SentinelSample> sentinelSamples = new ArrayList<>();
         ExecutorService sentinelExecutor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "cepbench-sentinel");
             thread.setDaemon(true);
@@ -82,6 +82,10 @@ public final class LoadRunner {
         Instant nextSentinel = startedAt.plus(workload.sentinelInterval());
         Instant nextProgress = startedAt.plus(workload.progressInterval());
         Future<SentinelProbe.Result> inFlightSentinel = null;
+        // When the in-flight probe was submitted, which is within milliseconds of when it published.
+        // A probe that times out finishes sentinelTimeout later, so completion time would place the
+        // failure that much too late.
+        Instant inFlightSince = null;
 
         // Absolute pacing rather than sleep-per-iteration: a fixed sleep accumulates the cost of
         // every publish and the achieved rate drifts below the requested one.
@@ -110,12 +114,15 @@ public final class LoadRunner {
 
                 if (sentinel != null && !now.isBefore(nextSentinel) && inFlightSentinel == null) {
                     inFlightSentinel = sentinelExecutor.submit(sentinel::probe);
+                    inFlightSince = now;
                     nextSentinel = now.plus(workload.sentinelInterval());
                 }
                 if (inFlightSentinel != null && inFlightSentinel.isDone()) {
                     SentinelProbe.Result result = takeResult(inFlightSentinel);
+                    Duration probedAt = Duration.between(startedAt, inFlightSince);
                     inFlightSentinel = null;
-                    sentinelResults.add(result);
+                    inFlightSince = null;
+                    sentinelSamples.add(new SentinelSample(probedAt, result));
                     progress.accept("sentinel: " + result.describe());
                     if (result.isFiringFailure() && workload.stopOnSentinelFailure()) {
                         progress.accept("Stopping: the sentinel rule stopped firing. Capture a thread "
@@ -142,7 +149,8 @@ public final class LoadRunner {
             }
 
             if (inFlightSentinel != null) {
-                sentinelResults.add(takeResult(inFlightSentinel));
+                sentinelSamples.add(new SentinelSample(
+                        Duration.between(startedAt, inFlightSince), takeResult(inFlightSentinel)));
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -159,7 +167,7 @@ public final class LoadRunner {
                 elapsed.toSeconds() == 0L ? eventsSent : eventsSent / elapsed.toSeconds(),
                 targets.background().size(),
                 sentinel == null ? null : sentinel.ruleId(),
-                List.copyOf(sentinelResults),
+                List.copyOf(sentinelSamples),
                 stopping.get());
     }
 
@@ -188,10 +196,17 @@ public final class LoadRunner {
     }
 
     /**
-     * @param firstFiringFailureIndex position of the first sentinel that ran and did not fire, or -1.
-     *                                Cross-referenced with the elapsed time, this is when the engine
-     *                                stopped.
+     * One sentinel probe and how far into the run it was published.
+     *
+     * <p>The offset is measured, not derived from the probe's position multiplied by
+     * {@code sentinelIntervalSeconds}. Those two disagree whenever a probe could not run — an
+     * unreachable API costs a slot without costing a firing — and again whenever the publish loop
+     * drifts, so an index-derived figure names the wrong moment for the thing the run exists to
+     * timestamp.
      */
+    public record SentinelSample(Duration at, SentinelProbe.Result result) {
+    }
+
     public record Result(long eventsSent,
                          long publishesAccepted,
                          long publishFailures,
@@ -199,20 +214,26 @@ public final class LoadRunner {
                          long achievedEventsPerSecond,
                          int devicesDriven,
                          String sentinelRuleId,
-                         List<SentinelProbe.Result> sentinelResults,
+                         List<SentinelSample> sentinelSamples,
                          boolean stoppedEarly) {
 
-        public int firstFiringFailureIndex() {
-            for (int index = 0; index < sentinelResults.size(); index++) {
-                if (sentinelResults.get(index).isFiringFailure()) {
-                    return index;
-                }
-            }
-            return -1;
+        /** The first probe that ran and did not fire: when the engine stopped. */
+        public java.util.Optional<SentinelSample> firstFiringFailure() {
+            return sentinelSamples.stream()
+                    .filter(sample -> sample.result().isFiringFailure())
+                    .findFirst();
         }
 
         public long sentinelsFired() {
-            return sentinelResults.stream().filter(SentinelProbe.Result::fired).count();
+            return sentinelSamples.stream().filter(sample -> sample.result().fired()).count();
+        }
+
+        /**
+         * Probes that never got to ask the question, because the baseline read or the publish
+         * failed. They are not evidence either way and must not be read as failures to fire.
+         */
+        public long sentinelsCouldNotRun() {
+            return sentinelSamples.stream().filter(sample -> sample.result().couldNotRun()).count();
         }
     }
 }
